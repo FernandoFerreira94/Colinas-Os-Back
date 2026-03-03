@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "os_apoio" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "os_finalizadas" INTEGER NOT NULL DEFAULT 0;
