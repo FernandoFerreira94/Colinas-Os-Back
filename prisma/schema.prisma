@@ -4,7 +4,12 @@ generator client {
 
 datasource db {
   provider = "postgresql"
- // url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
+}
+
+enum Categoria {
+  Eletrica
+  Refrigeraca
 }
 
 model User {
@@ -24,4 +29,27 @@ model User {
   os_finalizadas   Int       @default(0)
   os_apoio         Int       @default(0)
   created_at       DateTime  @default(now())
+}
+
+model Categoria_Equipamento {
+  id         String         @id @default(uuid())
+  categoria  Categoria
+  tag        String         @unique
+  tipo       String         @unique
+  created_at DateTime       @default(now())
+  equipamentos Equipamentos[]
+}
+
+model Equipamentos {
+  id               String                @id @default(uuid())
+  num_tag          Int                   @unique
+  name_equipamento String
+  categoria_id     String
+  categoria        Categoria_Equipamento @relation(fields: [categoria_id], references: [id])
+  modelo           String?
+  fabricante       String?
+  local_instalacao String?
+  descricao        String
+  file_equipamento String?
+  created_at       DateTime              @default(now())
 }
