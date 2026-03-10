@@ -9,7 +9,7 @@ datasource db {
 
 enum Categoria {
   Eletrica
-  Refrigeraca
+  Refrigeracao
 }
 
 model User {
@@ -42,6 +42,8 @@ model Categoria_Equipamento {
 
 model Equipamentos {
   id               String                @id @default(uuid())
+  ativo            Boolean
+  tag              String 
   num_tag          Int                   @unique
   name_equipamento String
   categoria_id     String
@@ -49,7 +51,34 @@ model Equipamentos {
   modelo           String?
   fabricante       String?
   local_instalacao String?
-  descricao        String
+  descricao        String?
   file_equipamento String?
   created_at       DateTime              @default(now())
+  ordens_servico   OrdemServico[]        // 👈 relação com OS
+}
+
+model OrdemServico {
+  id             String       @id @default(uuid())
+  equipamento_id String
+  equipamento    Equipamentos @relation(fields: [equipamento_id], references: [id])
+  titulo         String
+  descricao      String?
+  status         StatusOS     @default(ABERTA)
+  prioridade     Prioridade   @default(MEDIA)
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+}
+
+enum StatusOS {
+  ABERTA
+  EM_EXECUCAO
+  MATERIAL
+  FISCALIZACAO
+  FINALIZADA
+}
+
+enum Prioridade {
+  BAIXA
+  MEDIA
+  ALTA
 }
