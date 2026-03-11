@@ -32,20 +32,20 @@ model User {
 }
 
 model Categoria_Equipamento {
-  id         String         @id @default(uuid())
-  categoria  Categoria
-  tag        String         @unique
-  tipo       String         @unique
-  created_at DateTime       @default(now())
+  id           String         @id @default(uuid())
+  categoria    Categoria
+  tag          String         @unique
+  tipo         String         @unique
+  created_at   DateTime       @default(now())
   equipamentos Equipamentos[]
 }
 
 model Equipamentos {
   id               String                @id @default(uuid())
   ativo            Boolean
-  tag              String 
-  num_tag          Int                   @unique
   name_equipamento String
+  tag_formatada    String                @unique // 👈 ex: "AC-01"
+  num_tag          Int                          // 👈 volta para cá
   categoria_id     String
   categoria        Categoria_Equipamento @relation(fields: [categoria_id], references: [id])
   modelo           String?
@@ -54,7 +54,7 @@ model Equipamentos {
   descricao        String?
   file_equipamento String?
   created_at       DateTime              @default(now())
-  ordens_servico   OrdemServico[]        // 👈 relação com OS
+  ordens_servico   OrdemServico[]
 }
 
 model OrdemServico {
@@ -69,6 +69,25 @@ model OrdemServico {
   updated_at     DateTime     @updatedAt
 }
 
+
+model Categoria_Material {
+  id            String                  @id @default(uuid())
+  categoria     String
+  departamento  String
+  subCategorias SubCategoria_Material[]
+
+  @@unique([categoria, departamento]) // 👈 mesma categoria não repete no mesmo departamento
+}
+
+model SubCategoria_Material {
+  id              String             @id @default(uuid())
+  subCategoria    String
+  categoria_id    String
+  categoria       Categoria_Material @relation(fields: [categoria_id], references: [id])
+
+  @@unique([subCategoria, categoria_id]) // 👈 mesma subCategoria não repete na mesma categoria
+}
+
 enum StatusOS {
   ABERTA
   EM_EXECUCAO
@@ -76,6 +95,8 @@ enum StatusOS {
   FISCALIZACAO
   FINALIZADA
 }
+
+
 
 enum Prioridade {
   BAIXA

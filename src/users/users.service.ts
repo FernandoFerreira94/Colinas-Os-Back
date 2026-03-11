@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { User } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class UsersService {
@@ -34,21 +39,34 @@ export class UsersService {
     if (userExists) {
       throw new NotFoundException('Usuário ja cadastrado');
     }
+    try {
+      const defaultPàssword = createUserDto.cpf.substring(0, 6);
+      console.log(defaultPàssword);
+      const hashedPawword = await bcrypt.hash(defaultPàssword, 10);
 
-    const defaultPàssword = createUserDto.cpf.substring(0, 6);
-    console.log(defaultPàssword);
-    const hashedPawword = await bcrypt.hash(defaultPàssword, 10);
-
-    const user = await this.prisma.user.create({
-      data: {
-        ...createUserDto,
-        ativo: true,
-        os_finalizadas: 0,
-        os_apoio: 0,
-        password: hashedPawword,
-      },
-    });
-    return user;
+      const user = await this.prisma.user.create({
+        data: {
+          ...createUserDto,
+          ativo: true,
+          os_finalizadas: 0,
+          os_apoio: 0,
+          password: hashedPawword,
+        },
+      });
+      return user;
+    } catch (error) {
+      if (error instanceof PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          const field = error.meta?.target as string[];
+          throw new ConflictException(
+            field?.includes('cpf')
+              ? 'CPF já cadastrado!'
+              : 'Matrícula já cadastrada!',
+          );
+        }
+      }
+      throw error;
+    }
   }
 
   async updateUser(id: string, updateUserDto: UpdateUserDto) {

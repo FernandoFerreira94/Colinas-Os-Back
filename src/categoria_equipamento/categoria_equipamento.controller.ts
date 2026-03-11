@@ -13,7 +13,7 @@ export class CategoriaEquipamentoController {
     return this.categoriaEquipamentoService.findCategoriaAll();
   }
 
-  @Post()
+  @Post('create')
   createCategoria_equipamento(
     @Body() createCategoria_equipamento: Create_Categoria_equipamentoDto,
   ) {

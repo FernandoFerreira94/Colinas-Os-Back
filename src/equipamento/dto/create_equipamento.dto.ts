@@ -1,29 +1,22 @@
+// create_equipamento.dto.ts
 import {
   IsBoolean,
-  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Min,
+  IsUUID,
 } from 'class-validator';
 
 export class Create_EquipamentoDto {
   @IsBoolean()
-  ativo: boolean;
-
-  @IsString()
   @IsNotEmpty()
-  tag: string; // ex: "AC", "GE", "BBA"
-
-  @IsInt()
-  @Min(1)
-  num_tag: number; // ex: 1, 2, 3
+  ativo: boolean;
 
   @IsString()
   @IsNotEmpty()
   name_equipamento: string;
 
-  @IsString()
+  @IsUUID()
   @IsNotEmpty()
   categoria_id: string;
 
@@ -40,8 +33,8 @@ export class Create_EquipamentoDto {
   local_instalacao?: string;
 
   @IsString()
-  @IsNotEmpty()
-  descricao: string;
+  @IsOptional()
+  descricao?: string;
 
   @IsString()
   @IsOptional()

@@ -6,6 +6,7 @@ import { PrismaModule } from 'src/prisma/prisma.module';
 import { AuthModule } from 'src/auth/auth.module';
 import { CategoriaEquipamentoModule } from 'src/categoria_equipamento/categoria_equipamento.module';
 import { EquipamentoModule } from 'src/equipamento/equipamento.module';
+import { CategoriaMaterialModule } from 'src/categoria_material/categoria_material.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { EquipamentoModule } from 'src/equipamento/equipamento.module';
     AuthModule,
     CategoriaEquipamentoModule,
     EquipamentoModule,
+    CategoriaMaterialModule,
   ],
   controllers: [AppController],
   providers: [AppService],
