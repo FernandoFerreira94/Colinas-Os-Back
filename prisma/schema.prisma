@@ -73,10 +73,8 @@ model OrdemServico {
 model Categoria_Material {
   id            String                  @id @default(uuid())
   categoria     String
-  departamento  String
   subCategorias SubCategoria_Material[]
-
-  @@unique([categoria, departamento]) // 👈 mesma categoria não repete no mesmo departamento
+  @@unique([categoria]) // 👈 mesma categoria não repete no mesmo departamento
 }
 
 model SubCategoria_Material {

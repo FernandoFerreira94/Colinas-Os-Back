@@ -9,31 +9,33 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { CreateCategoriaDto } from './dto/createCategoriaMaterial.dto';
 import { CreateSubCategoriaDto } from 'src/categoria_material/dto/createSubCategoria.dto';
-import { Categoria_Material } from '@prisma/client';
+
 import { SubCategoria_Material } from './entities/subCategoriaMaterial.entity';
 
 @Injectable()
 export class CategoriaMaterialService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createCategoria(dto: CreateCategoriaDto): Promise<Categoria_Material> {
+  async createCategoria(dto: CreateCategoriaDto) {
+    const existCategoria = await this.prisma.categoria_Material.findFirst({
+      where: { categoria: dto.categoria },
+    });
+
+    if (existCategoria) {
+      throw new ConflictException('Categoria ja cadastrada');
+    }
     try {
       return await this.prisma.categoria_Material.create({
         data: {
           categoria: dto.categoria,
-          departamento: dto.departamento,
         },
       });
     } catch (error) {
       if (
         error instanceof PrismaClientKnownRequestError &&
         error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          `Categoria "${dto.categoria}" já existe no departamento "${dto.departamento}"`,
-        );
-      }
-      throw error;
+      )
+        throw error;
     }
   }
 
@@ -68,10 +70,10 @@ export class CategoriaMaterialService {
     }
   }
 
-  async findCategoriaAll(): Promise<Categoria_Material[]> {
+  async findCategoriaAll() {
     try {
       const categoriaAll = await this.prisma.categoria_Material.findMany();
-      return categoriaAll as Categoria_Material[];
+      return categoriaAll;
     } catch (error) {
       console.log(error);
       throw new NotFoundException('Nenhuma categoria encontrada');
@@ -80,14 +82,11 @@ export class CategoriaMaterialService {
 
   async findSubCategoriaAll() {
     try {
-      const subCaterogiraall = await this.prisma.subCategoria_Material.findMany(
-        {
-          include: {
-            categoria: true,
-          },
+      return await this.prisma.subCategoria_Material.findMany({
+        include: {
+          categoria: true,
         },
-      );
-      return subCaterogiraall;
+      });
     } catch (error) {
       console.log(error);
       throw new NotFoundException('Nenhuma Sub categoria encontrada');

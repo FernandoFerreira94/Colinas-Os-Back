@@ -5,8 +5,4 @@ export class CreateCategoriaDto {
   @IsString()
   @IsNotEmpty()
   categoria: string;
-
-  @IsString()
-  @IsNotEmpty()
-  departamento: string;
 }

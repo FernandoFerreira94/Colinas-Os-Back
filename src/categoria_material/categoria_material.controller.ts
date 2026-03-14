@@ -9,7 +9,7 @@ export class CategoriaMaterialController {
   constructor(private readonly service: CategoriaMaterialService) {}
 
   // POST /categoria-material/categoria
-  @Post('categoria')
+  @Post('create')
   createCategoria(@Body() dto: CreateCategoriaDto) {
     return this.service.createCategoria(dto);
   }
@@ -24,7 +24,7 @@ export class CategoriaMaterialController {
   findCategoriaAll() {
     return this.service.findCategoriaAll();
   }
-  @Get('sub/all')
+  @Get('sub-categoria')
   findSubCategoriaAll() {
     return this.service.findSubCategoriaAll();
   }
