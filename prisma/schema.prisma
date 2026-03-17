@@ -7,9 +7,65 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Categoria {
+// ─────────────────────────────────────────
+// ENUMS
+
+
+enum CategoriaEquipamento {
   Eletrica
   Refrigeracao
+}
+
+enum Unidade {
+  Un
+  Kg
+  Mt
+  Cx
+  Ll
+  Pc
+}
+
+
+
+enum Complexo {
+  SHOPPING_COLINAS
+  GREEN_TOWER
+  ESTACIONAMENTO
+}
+
+enum StatusOS {
+  ABERTA
+  EM_EXECUCAO
+  MATERIAL
+  FISCALIZACAO
+  FINALIZADA
+}
+
+enum Prioridade {
+  BAIXA
+  MEDIA
+  ALTA
+}
+
+// ─────────────────────────────────────────
+
+// USER
+enum FuncaoUser {
+  ELETRICISTA
+  TECNICO_REFRIGERACAO
+  OFICIAL_GERAL
+  LIDER
+  SUPERVISOR
+  ALMOXARIFE           // ✅ adicionado
+  COORDENADOR
+  GERENTE_OPERACIONAL  // ✅ mais específico que GERENTE
+}
+
+enum Plantao {
+  Diurno
+  Noturno
+  Comercial1
+  Comercial2
 }
 
 model User {
@@ -17,10 +73,10 @@ model User {
   nameFull         String
   matricula        Int       @unique
   cpf              String    @unique
-  funcao           String
+  funcao           FuncaoUser
   is_admin         Boolean   @default(false)
   is_almoxarife    Boolean   @default(false)
-  plantao          String
+  plantao          Plantao
   equipe           String
   ativo            Boolean   @default(true)
   date_register    DateTime
@@ -30,32 +86,82 @@ model User {
   os_apoio         Int       @default(0)
   created_at       DateTime  @default(now())
 }
+// ─────────────────────────────────────────
+
+// ─────────────────────────────────────────
+// CATEGORIA EQUIPAMENTO
+// @@map mantém o nome original da tabela no banco
+// ─────────────────────────────────────────
 
 model Categoria_Equipamento {
-  id           String         @id @default(uuid())
-  categoria    Categoria
-  tag          String         @unique
-  tipo         String         @unique
-  created_at   DateTime       @default(now())
+  id           String               @id @default(uuid())
+  categoria    CategoriaEquipamento
+  tag          String               @unique
+  tipo         String               @unique
+  created_at   DateTime             @default(now())
+
   equipamentos Equipamentos[]
 }
 
+// ─────────────────────────────────────────
+// LOCALIZAÇÃO (tabela nova)
+// ─────────────────────────────────────────
+
+model Localizacao {
+  id         String   @id @default(uuid())
+  complexo   Complexo
+  andar      String?
+  area       String?
+  created_at DateTime @default(now())
+
+  equipamentos Equipamentos[]
+}
+
+// ─────────────────────────────────────────
+// EMPRESA TERCEIRIZADA (tabela nova)
+// ─────────────────────────────────────────
+
+model EmpresaTerceirizada {
+  id         String   @id @default(uuid())
+  nome       String
+  cnpj       String?  @unique
+  contato    String?
+  ativo      Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  equipamentos Equipamentos[]
+}
+
+// ─────────────────────────────────────────
+// EQUIPAMENTOS
+// ─────────────────────────────────────────
+
 model Equipamentos {
   id               String                @id @default(uuid())
-  ativo            Boolean
+  ativo            Boolean               @default(true)
   name_equipamento String
-  tag_formatada    String                @unique // 👈 ex: "AC-01"
-  num_tag          Int                          // 👈 volta para cá
+  tag_formatada    String                @unique
+  num_tag          Int
   categoria_id     String
   categoria        Categoria_Equipamento @relation(fields: [categoria_id], references: [id])
+  localizacao_id   String?
+  localizacao      Localizacao?          @relation(fields: [localizacao_id], references: [id])
+  empresa_id       String?
+  empresa          EmpresaTerceirizada?  @relation(fields: [empresa_id], references: [id])
   modelo           String?
   fabricante       String?
   local_instalacao String?
   descricao        String?
-  file_equipamento String?
+  fotos            String[]
   created_at       DateTime              @default(now())
-  ordens_servico   OrdemServico[]
+
+  ordens_servico OrdemServico[]
 }
+
+// ─────────────────────────────────────────
+// ORDEM DE SERVIÇO
+// Mantida igual — será atualizada na próxima fase
+// ─────────────────────────────────────────
 
 model OrdemServico {
   id             String       @id @default(uuid())
@@ -69,35 +175,41 @@ model OrdemServico {
   updated_at     DateTime     @updatedAt
 }
 
+// ─────────────────────────────────────────
+// MATERIAIS
+// ─────────────────────────────────────────
 
 model Categoria_Material {
   id            String                  @id @default(uuid())
-  categoria     String
+  categoria     String                  @unique
   subCategorias SubCategoria_Material[]
-  @@unique([categoria]) // 👈 mesma categoria não repete no mesmo departamento
 }
 
 model SubCategoria_Material {
-  id              String             @id @default(uuid())
-  subCategoria    String
-  categoria_id    String
-  categoria       Categoria_Material @relation(fields: [categoria_id], references: [id])
+  id           String             @id @default(uuid())
+  subCategoria String
+  categoria_id String
+  categoria    Categoria_Material @relation(fields: [categoria_id], references: [id])
+  materiais    Material[]
 
-  @@unique([subCategoria, categoria_id]) // 👈 mesma subCategoria não repete na mesma categoria
+  @@unique([subCategoria, categoria_id])
 }
 
-enum StatusOS {
-  ABERTA
-  EM_EXECUCAO
-  MATERIAL
-  FISCALIZACAO
-  FINALIZADA
-}
+model Material {
+  id                 String                @id @default(uuid())
+  codigo             String                @unique @db.VarChar(20)
+  descricao          String
+  cor                String?
+  quantidade_minima  Int?
+  quantidade_estoque Int                   @default(0)
+  departamento       Complexo
+  marca              String?
+  price              Decimal               @db.Decimal(10, 2)
+  unidade            Unidade
+  subcategoriaId     String
+  subcategoria       SubCategoria_Material @relation(fields: [subcategoriaId], references: [id])
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
-
-
-enum Prioridade {
-  BAIXA
-  MEDIA
-  ALTA
+  @@map("materiais")
 }

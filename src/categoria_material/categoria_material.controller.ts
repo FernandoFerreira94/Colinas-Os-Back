@@ -24,6 +24,7 @@ export class CategoriaMaterialController {
   findCategoriaAll() {
     return this.service.findCategoriaAll();
   }
+
   @Get('sub-categoria')
   findSubCategoriaAll() {
     return this.service.findSubCategoriaAll();

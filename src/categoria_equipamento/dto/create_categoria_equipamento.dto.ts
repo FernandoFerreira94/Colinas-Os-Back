@@ -1,9 +1,9 @@
 import { IsString, MinLength } from 'class-validator';
-import { Categoria } from '@prisma/client';
+import { CategoriaEquipamento } from '@prisma/client';
 
 export class Create_Categoria_equipamentoDto {
   @IsString()
-  readonly categoria: Categoria;
+  readonly categoria: CategoriaEquipamento;
 
   @IsString()
   readonly tipo: string;

@@ -1,10 +1,7 @@
 import { IsBoolean, IsDate, IsInt, IsString, MinLength } from 'class-validator';
-import type {
-  EquipeProps,
-  FuncaoProps,
-  PlantaoProps,
-} from '../entities/user.entity';
+import type { EquipeProps } from '../entities/user.entity';
 import { Transform } from 'class-transformer';
+import { FuncaoUser, Plantao } from '@prisma/client';
 
 export class CreateUserDto {
   @IsString()
@@ -15,7 +12,7 @@ export class CreateUserDto {
   readonly matricula: number;
 
   @IsString()
-  readonly funcao: FuncaoProps;
+  readonly funcao: FuncaoUser;
 
   @IsBoolean()
   readonly is_admin: boolean;
@@ -24,7 +21,7 @@ export class CreateUserDto {
   readonly is_almoxarife: boolean;
 
   @IsString()
-  readonly plantao: PlantaoProps;
+  readonly plantao: Plantao;
 
   @IsDate()
   @Transform(({ value }) => new Date(value))

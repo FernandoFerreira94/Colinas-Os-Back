@@ -1,6 +1,7 @@
-// create_equipamento.dto.ts
 import {
+  IsArray,
   IsBoolean,
+  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -9,16 +10,28 @@ import {
 
 export class Create_EquipamentoDto {
   @IsBoolean()
-  @IsNotEmpty()
-  ativo: boolean;
+  @IsOptional()
+  ativo?: boolean;
 
   @IsString()
   @IsNotEmpty()
   name_equipamento: string;
 
+  @IsInt()
+  @IsNotEmpty()
+  num_tag: number;
+
   @IsUUID()
   @IsNotEmpty()
   categoria_id: string;
+
+  @IsUUID()
+  @IsOptional()
+  localizacao_id?: string;
+
+  @IsUUID()
+  @IsOptional()
+  empresa_id?: string;
 
   @IsString()
   @IsOptional()
@@ -36,7 +49,8 @@ export class Create_EquipamentoDto {
   @IsOptional()
   descricao?: string;
 
-  @IsString()
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  file_equipamento?: string;
+  fotos?: string[];
 }

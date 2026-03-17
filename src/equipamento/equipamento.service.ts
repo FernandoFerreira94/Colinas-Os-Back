@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Create_EquipamentoDto } from './dto/create_equipamento.dto';
-import { Categoria, Prisma } from '@prisma/client';
+import { CategoriaEquipamento, Prisma } from '@prisma/client'; // ✅ enum renomeado
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { UpdateEquipamentoDto } from './dto/update_equipamento.dto';
 
@@ -14,10 +14,17 @@ import { UpdateEquipamentoDto } from './dto/update_equipamento.dto';
 export class EquipamentoService {
   constructor(private prisma: PrismaService) {}
 
+  // ✅ include centralizado — fácil de manter
+  private readonly includeRelations = {
+    categoria: true,
+    localizacao: true, // novo
+    empresa: true, // novo
+    ordens_servico: true,
+  };
+
   async createEquipamento(createEqupamento: Create_EquipamentoDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        // 👇 busca a categoria para pegar a tag (ex: "AC", "GE")
         const categoria = await tx.categoria_Equipamento.findUnique({
           where: { id: createEqupamento.categoria_id },
           select: { tag: true },
@@ -27,7 +34,6 @@ export class EquipamentoService {
           throw new NotFoundException('Categoria não encontrada.');
         }
 
-        // 👇 busca o último num_tag dentro da mesma categoria
         const ultimo = await tx.equipamentos.findFirst({
           where: { categoria_id: createEqupamento.categoria_id },
           orderBy: { num_tag: 'desc' },
@@ -35,8 +41,6 @@ export class EquipamentoService {
         });
 
         const proximo_num_tag = ultimo ? ultimo.num_tag + 1 : 1;
-
-        // 👇 gera "AC-01", "GE-03"...
         const tag_formatada = `${categoria.tag}-${String(proximo_num_tag).padStart(2, '0')}`;
 
         return await tx.equipamentos.create({
@@ -44,7 +48,9 @@ export class EquipamentoService {
             ...createEqupamento,
             num_tag: proximo_num_tag,
             tag_formatada,
+            fotos: createEqupamento.fotos ?? [], // ✅ garante array vazio se não enviado
           },
+          include: this.includeRelations,
         });
       });
     } catch (error) {
@@ -71,13 +77,10 @@ export class EquipamentoService {
   }
 
   async findAllEquipamentos() {
-    const equipamentosAll = await this.prisma.equipamentos.findMany({
-      include: {
-        ordens_servico: true,
-        categoria: true, // 👈
-      },
+    return this.prisma.equipamentos.findMany({
+      include: this.includeRelations,
+      orderBy: { num_tag: 'asc' },
     });
-    return equipamentosAll;
   }
 
   async getEquipamentosFilter(filter?: string) {
@@ -89,17 +92,16 @@ export class EquipamentoService {
             ? { ativo: false }
             : filter === 'Todos' || !filter
               ? {}
-              : { categoria: { is: { categoria: filter as Categoria } } }; // 👈 is para relação
+              : {
+                  categoria: {
+                    is: { categoria: filter as CategoriaEquipamento },
+                  },
+                }; // ✅ enum atualizado
 
       return this.prisma.equipamentos.findMany({
         where,
-        include: {
-          ordens_servico: true,
-          categoria: true, // 👈
-        },
-        orderBy: {
-          num_tag: 'asc',
-        },
+        include: this.includeRelations,
+        orderBy: { num_tag: 'asc' },
       });
     } catch (error) {
       console.log(error);
@@ -109,32 +111,33 @@ export class EquipamentoService {
 
   async getEquipamentoId(id: string) {
     try {
-      return this.prisma.equipamentos.findUnique({
+      const equipamento = await this.prisma.equipamentos.findUnique({
         where: { id },
-        include: {
-          ordens_servico: true,
-          categoria: true, // 👈
-        },
+        include: this.includeRelations,
       });
+
+      if (!equipamento) {
+        throw new NotFoundException('Equipamento não encontrado.');
+      }
+
+      return equipamento;
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       console.log(error);
       throw new InternalServerErrorException('Erro ao buscar equipamento');
     }
   }
 
-  // equipamento.service.ts — adicione esse método
   async updateEquipamento(id: string, updateDto: UpdateEquipamentoDto) {
     try {
-      // 👇 verifica se o equipamento existe
       const equipamento = await this.prisma.equipamentos.findUnique({
         where: { id },
       });
 
       if (!equipamento) {
-        throw new NotFoundException(`Equipamento não encontrado.`);
+        throw new NotFoundException('Equipamento não encontrado.');
       }
 
-      // 👇 se categoria_id mudou, verifica se a nova categoria existe
       if (updateDto.categoria_id) {
         const categoriaExiste =
           await this.prisma.categoria_Equipamento.findUnique({
@@ -142,17 +145,14 @@ export class EquipamentoService {
           });
 
         if (!categoriaExiste) {
-          throw new NotFoundException(`Categoria não encontrada.`);
+          throw new NotFoundException('Categoria não encontrada.');
         }
       }
 
       return await this.prisma.equipamentos.update({
         where: { id },
         data: updateDto,
-        include: {
-          categoria: true,
-          ordens_servico: true,
-        },
+        include: this.includeRelations,
       });
     } catch (error) {
       if (error instanceof NotFoundException) throw error;
@@ -167,11 +167,19 @@ export class EquipamentoService {
 
   async deleteEquipamento(delete_id: string) {
     try {
-      const del = await this.prisma.equipamentos.delete({
+      const equipamento = await this.prisma.equipamentos.findUnique({
         where: { id: delete_id },
       });
-      return del;
+
+      if (!equipamento) {
+        throw new NotFoundException('Equipamento não encontrado.');
+      }
+
+      return await this.prisma.equipamentos.delete({
+        where: { id: delete_id },
+      });
     } catch (error) {
+      if (error instanceof NotFoundException) throw error;
       console.log(error);
       throw new InternalServerErrorException('Erro ao deletar equipamento');
     }
