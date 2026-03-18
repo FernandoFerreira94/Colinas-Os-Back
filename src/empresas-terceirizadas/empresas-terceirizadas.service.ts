@@ -12,7 +12,7 @@ export class EmpresasTerceirizadasService {
   constructor(private prisma: PrismaService) {}
 
   async findAll() {
-    return this.prisma.empresaTerceirizada.findMany({
+    return await this.prisma.empresaTerceirizada.findMany({
       orderBy: { nome: 'asc' },
     });
   }

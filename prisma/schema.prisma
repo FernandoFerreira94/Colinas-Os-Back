@@ -9,7 +9,7 @@ datasource db {
 
 // ─────────────────────────────────────────
 // ENUMS
-
+// ─────────────────────────────────────────
 
 enum CategoriaEquipamento {
   Eletrica
@@ -25,19 +25,26 @@ enum Unidade {
   Pc
 }
 
-
-
 enum Complexo {
   SHOPPING_COLINAS
   GREEN_TOWER
   ESTACIONAMENTO
 }
 
+enum TipoOS {
+  CORRETIVA
+  MELHORIA
+  ACOMPANHAMENTO
+  PREVENTIVA
+}
+
 enum StatusOS {
   ABERTA
   EM_EXECUCAO
-  MATERIAL
-  FISCALIZACAO
+  AGUARDANDO_MATERIAL
+  MATERIAL_COMPRADO
+  MATERIAL_RECUSADO
+  AGUARDANDO_FISCALIZACAO
   FINALIZADA
 }
 
@@ -47,18 +54,15 @@ enum Prioridade {
   ALTA
 }
 
-// ─────────────────────────────────────────
-
-// USER
 enum FuncaoUser {
   ELETRICISTA
   TECNICO_REFRIGERACAO
   OFICIAL_GERAL
   LIDER
   SUPERVISOR
-  ALMOXARIFE           // ✅ adicionado
+  ALMOXARIFE
   COORDENADOR
-  GERENTE_OPERACIONAL  // ✅ mais específico que GERENTE
+  GERENTE_OPERACIONAL
 }
 
 enum Plantao {
@@ -68,43 +72,49 @@ enum Plantao {
   Comercial2
 }
 
+// ─────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────
+
 model User {
-  id               String    @id @default(uuid())
+  id               String     @id @default(uuid())
   nameFull         String
-  matricula        Int       @unique
-  cpf              String    @unique
+  matricula        Int        @unique
+  cpf              String     @unique
   funcao           FuncaoUser
-  is_admin         Boolean   @default(false)
-  is_almoxarife    Boolean   @default(false)
+  is_admin         Boolean    @default(false)
+  is_almoxarife    Boolean    @default(false)
   plantao          Plantao
   equipe           String
-  ativo            Boolean   @default(true)
+  ativo            Boolean    @default(true)
   date_register    DateTime
   date_termination DateTime?
   password         String
-  os_finalizadas   Int       @default(0)
-  os_apoio         Int       @default(0)
-  created_at       DateTime  @default(now())
+  os_finalizadas   Int        @default(0)
+  os_apoio         Int        @default(0)
+  created_at       DateTime   @default(now())
+
+  ordens_responsavel OrdemServico[] @relation("TecnicoResponsavel")
+  ordens_apoio       OsApoio[]
+  os_criadas         OrdemServico[] @relation("OSCriadaPor")
 }
-// ─────────────────────────────────────────
 
 // ─────────────────────────────────────────
 // CATEGORIA EQUIPAMENTO
-// @@map mantém o nome original da tabela no banco
 // ─────────────────────────────────────────
 
 model Categoria_Equipamento {
-  id           String               @id @default(uuid())
-  categoria    CategoriaEquipamento
-  tag          String               @unique
-  tipo         String               @unique
-  created_at   DateTime             @default(now())
+  id         String               @id @default(uuid())
+  categoria  CategoriaEquipamento
+  tag        String               @unique
+  tipo       String               @unique
+  created_at DateTime             @default(now())
 
   equipamentos Equipamentos[]
 }
 
 // ─────────────────────────────────────────
-// LOCALIZAÇÃO (tabela nova)
+// LOCALIZAÇÃO
 // ─────────────────────────────────────────
 
 model Localizacao {
@@ -114,11 +124,12 @@ model Localizacao {
   area       String?
   created_at DateTime @default(now())
 
-  equipamentos Equipamentos[]
+  equipamentos   Equipamentos[]
+  ordens_servico OrdemServico[]
 }
 
 // ─────────────────────────────────────────
-// EMPRESA TERCEIRIZADA (tabela nova)
+// EMPRESA TERCEIRIZADA
 // ─────────────────────────────────────────
 
 model EmpresaTerceirizada {
@@ -129,7 +140,8 @@ model EmpresaTerceirizada {
   ativo      Boolean  @default(true)
   created_at DateTime @default(now())
 
-  equipamentos Equipamentos[]
+  equipamentos   Equipamentos[]
+  ordens_servico OrdemServico[]
 }
 
 // ─────────────────────────────────────────
@@ -160,19 +172,47 @@ model Equipamentos {
 
 // ─────────────────────────────────────────
 // ORDEM DE SERVIÇO
-// Mantida igual — será atualizada na próxima fase
 // ─────────────────────────────────────────
 
 model OrdemServico {
-  id             String       @id @default(uuid())
-  equipamento_id String
-  equipamento    Equipamentos @relation(fields: [equipamento_id], references: [id])
-  titulo         String
-  descricao      String?
-  status         StatusOS     @default(ABERTA)
-  prioridade     Prioridade   @default(MEDIA)
-  created_at     DateTime     @default(now())
-  updated_at     DateTime     @updatedAt
+  id                String               @id @default(uuid())
+  titulo            String
+  descricao         String?
+  tipo              TipoOS
+  status            StatusOS             @default(ABERTA)
+  prioridade        Prioridade           @default(MEDIA)
+  complexo          Complexo
+  localizacao_id    String?
+  localizacao       Localizacao?         @relation(fields: [localizacao_id], references: [id])
+  equipamento_id    String?
+  equipamento       Equipamentos?        @relation(fields: [equipamento_id], references: [id])
+  tecnico_id        String?
+  tecnico           User?                @relation("TecnicoResponsavel", fields: [tecnico_id], references: [id])
+  criado_por_id     String
+  criado_por        User                 @relation("OSCriadaPor", fields: [criado_por_id], references: [id])
+  empresa_id        String?
+  empresa           EmpresaTerceirizada? @relation(fields: [empresa_id], references: [id])
+  preventiva_id     String?
+  empresa_nome      String?
+  tecnico_externo   String?
+  cargo_externo     String?
+  fotos             String[]
+  observacao_fiscal String?
+  created_at        DateTime             @default(now())
+  updated_at        DateTime             @updatedAt
+  finalizada_at     DateTime?
+
+  apoios OsApoio[]
+}
+
+model OsApoio {
+  id      String       @id @default(uuid())
+  os_id   String
+  os      OrdemServico @relation(fields: [os_id], references: [id])
+  user_id String
+  user    User         @relation(fields: [user_id], references: [id])
+
+  @@unique([os_id, user_id])
 }
 
 // ─────────────────────────────────────────

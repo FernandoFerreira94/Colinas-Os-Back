@@ -10,6 +10,7 @@ import { CategoriaMaterialModule } from 'src/categoria_material/categoria_materi
 import { MaterialModule } from 'src/material/material.module';
 import { LocalizacaoModule } from 'src/localizacao/localizacao.module';
 import { EmpresasTerceirizadasModule } from 'src/empresas-terceirizadas/empresas-terceirizadas.module';
+import { OrdemServicoModule } from 'src/ordem-servico/ordem-servico.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { EmpresasTerceirizadasModule } from 'src/empresas-terceirizadas/empresas
     MaterialModule,
     LocalizacaoModule,
     EmpresasTerceirizadasModule,
+    OrdemServicoModule,
   ],
   controllers: [AppController],
   providers: [AppService],
