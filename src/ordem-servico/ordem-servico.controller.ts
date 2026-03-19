@@ -32,6 +32,11 @@ export class OrdemServicoController {
     return this.ordemServicoService.findByTipo(tipo);
   }
 
+  @Get('categoria/:categoria')
+  findByCategoria(@Param('categoria') categoria: string) {
+    return this.ordemServicoService.findByCategoria(categoria);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.ordemServicoService.findOne(id);

@@ -20,6 +20,9 @@ export class OrdemServicoService {
     tecnico: {
       select: { id: true, nameFull: true, matricula: true, funcao: true },
     },
+    atribuido_por: {
+      select: { id: true, nameFull: true, matricula: true, funcao: true },
+    },
     equipamento: true,
     localizacao: true,
     empresa: true,
@@ -60,6 +63,14 @@ export class OrdemServicoService {
     });
   }
 
+  async findByCategoria(categoria: string) {
+    return this.prisma.ordemServico.findMany({
+      where: { categoria },
+      include: this.includeRelations,
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
   async findByTipo(tipo: TipoOS) {
     return this.prisma.ordemServico.findMany({
       where: { tipo },
@@ -73,8 +84,8 @@ export class OrdemServicoService {
       data: {
         ...dto,
         fotos: dto.fotos ?? [],
-        status: StatusOS.ABERTA,
-        tecnico_id: null,
+        status: 'ABERTA', // sempre ABERTA na criação
+        tecnico_id: dto.tecnico_id ?? null,
       },
       include: this.includeRelations,
     });
@@ -108,6 +119,7 @@ export class OrdemServicoService {
       status: StatusOS;
       tecnico_id?: string;
       finalizada_at?: Date;
+      atribuido_por_id?: string;
     } = { status: dto.status };
 
     if (dto.status === StatusOS.EM_EXECUCAO) {
@@ -116,6 +128,10 @@ export class OrdemServicoService {
 
     if (dto.status === StatusOS.FINALIZADA) {
       data.finalizada_at = new Date();
+    }
+
+    if (dto.atribuido_por_id) {
+      data.atribuido_por_id = dto.atribuido_por_id;
     }
 
     return this.prisma.ordemServico.update({

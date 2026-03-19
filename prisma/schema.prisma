@@ -97,6 +97,7 @@ model User {
   ordens_responsavel OrdemServico[] @relation("TecnicoResponsavel")
   ordens_apoio       OsApoio[]
   os_criadas         OrdemServico[] @relation("OSCriadaPor")
+  os_atribuidas      OrdemServico[] @relation("OSAtribuidaPor")
 }
 
 // ─────────────────────────────────────────
@@ -193,6 +194,7 @@ model OrdemServico {
   empresa_id        String?
   empresa           EmpresaTerceirizada? @relation(fields: [empresa_id], references: [id])
   preventiva_id     String?
+  categoria         String?
   empresa_nome      String?
   tecnico_externo   String?
   cargo_externo     String?
@@ -201,6 +203,8 @@ model OrdemServico {
   created_at        DateTime             @default(now())
   updated_at        DateTime             @updatedAt
   finalizada_at     DateTime?
+  atribuido_por_id String?
+  atribuido_por    User?   @relation("OSAtribuidaPor", fields: [atribuido_por_id], references: [id])
 
   apoios OsApoio[]
 }

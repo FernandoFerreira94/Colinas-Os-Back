@@ -13,6 +13,10 @@ export class CreateOrdemServicoDto {
   @IsNotEmpty()
   titulo: string;
 
+  @IsUUID()
+  @IsOptional()
+  tecnico_id?: string; // ✅ adicionar de volta como opcional
+
   @IsString()
   @IsOptional()
   descricao?: string;
@@ -44,6 +48,10 @@ export class CreateOrdemServicoDto {
   @IsUUID()
   @IsOptional()
   empresa_id?: string;
+
+  @IsString()
+  @IsOptional()
+  categoria?: string;
 
   @IsString()
   @IsOptional()

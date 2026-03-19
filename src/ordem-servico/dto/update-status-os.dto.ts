@@ -9,4 +9,8 @@ export class UpdateStatusOsDto {
   @IsUUID()
   @IsOptional()
   tecnico_id?: string;
+
+  @IsUUID()
+  @IsOptional()
+  atribuido_por_id?: string;
 }
