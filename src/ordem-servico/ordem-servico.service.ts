@@ -8,29 +8,25 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateOrdemServicoDto } from './dto/create-ordem-servico.dto';
 import { UpdateOrdemServicoDto } from './dto/update-ordem-servico.dto';
 import { UpdateStatusOsDto } from './dto/update-status-os.dto';
+import { gerarCodigoOS } from './helpers/gerar-codigo-os.helper';
 
 @Injectable()
 export class OrdemServicoService {
   constructor(private prisma: PrismaService) {}
 
   private readonly includeRelations = {
-    criado_por: {
-      select: { id: true, nameFull: true, matricula: true, funcao: true },
-    },
-    tecnico: {
-      select: { id: true, nameFull: true, matricula: true, funcao: true },
-    },
-    atribuido_por: {
-      select: { id: true, nameFull: true, matricula: true, funcao: true },
-    },
-    equipamento: true,
+    criado_por: { select: { id: true, nameFull: true, funcao: true } },
+    tecnico: { select: { id: true, nameFull: true, funcao: true } },
+    atribuido_por: { select: { id: true, nameFull: true, funcao: true } },
     localizacao: true,
+    equipamento: { include: { categoria: true } },
+    equipamentos_os: {
+      include: { equipamento: { include: { categoria: true } } },
+    },
     empresa: true,
     apoios: {
       include: {
-        user: {
-          select: { id: true, nameFull: true, matricula: true, funcao: true },
-        },
+        user: { select: { id: true, nameFull: true, funcao: true } },
       },
     },
   };
@@ -80,14 +76,37 @@ export class OrdemServicoService {
   }
 
   async create(dto: CreateOrdemServicoDto) {
-    return this.prisma.ordemServico.create({
-      data: {
-        ...dto,
-        fotos: dto.fotos ?? [],
-        status: 'ABERTA', // sempre ABERTA na criação
-        tecnico_id: dto.tecnico_id ?? null,
-      },
-      include: this.includeRelations,
+    const { equipamentos_ids, ...osData } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const codigo = await gerarCodigoOS(tx as any, osData.tipo, osData.categoria);
+
+      const os = await tx.ordemServico.create({
+        data: {
+          ...osData,
+          codigo,
+          fotos: osData.fotos ?? [],
+          status: 'ABERTA',
+          tecnico_id: osData.tecnico_id ?? null,
+          equipamento_id:
+            equipamentos_ids?.[0] ?? osData.equipamento_id ?? null,
+        },
+      });
+
+      if (equipamentos_ids && equipamentos_ids.length > 0) {
+        await tx.osEquipamento.createMany({
+          data: equipamentos_ids.map((equipamento_id) => ({
+            os_id: os.id,
+            equipamento_id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      return tx.ordemServico.findUnique({
+        where: { id: os.id },
+        include: this.includeRelations,
+      });
     });
   }
 
@@ -153,9 +172,42 @@ export class OrdemServicoService {
     return this.prisma.osApoio.create({
       data: { os_id: osId, user_id: userId },
       include: {
-        user: {
-          select: { id: true, nameFull: true, matricula: true, funcao: true },
-        },
+        user: { select: { id: true, nameFull: true, funcao: true } },
+      },
+    });
+  }
+
+  async addEquipamento(osId: string, equipamentoId: string) {
+    await this.findOne(osId);
+
+    return this.prisma.osEquipamento.create({
+      data: { os_id: osId, equipamento_id: equipamentoId },
+      include: { equipamento: true },
+    });
+  }
+
+  async removeEquipamento(osId: string, equipamentoId: string) {
+    const os = await this.findOne(osId);
+
+    if (os.equipamento_id === equipamentoId) {
+      throw new BadRequestException(
+        'Não é possível remover o equipamento principal da OS.',
+      );
+    }
+
+    const registro = await this.prisma.osEquipamento.findUnique({
+      where: {
+        os_id_equipamento_id: { os_id: osId, equipamento_id: equipamentoId },
+      },
+    });
+
+    if (!registro) {
+      throw new NotFoundException('Equipamento não encontrado nesta OS.');
+    }
+
+    return this.prisma.osEquipamento.delete({
+      where: {
+        os_id_equipamento_id: { os_id: osId, equipamento_id: equipamentoId },
       },
     });
   }

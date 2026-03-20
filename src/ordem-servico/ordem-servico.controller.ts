@@ -57,6 +57,22 @@ export class OrdemServicoController {
     return this.ordemServicoService.updateStatus(id, dto);
   }
 
+  @Post(':id/equipamento')
+  addEquipamento(
+    @Param('id') id: string,
+    @Body('equipamento_id') equipamentoId: string,
+  ) {
+    return this.ordemServicoService.addEquipamento(id, equipamentoId);
+  }
+
+  @Delete(':id/equipamento/:equipamentoId')
+  removeEquipamento(
+    @Param('id') id: string,
+    @Param('equipamentoId') equipamentoId: string,
+  ) {
+    return this.ordemServicoService.removeEquipamento(id, equipamentoId);
+  }
+
   @Post(':id/apoio')
   addApoio(@Param('id') id: string, @Body('user_id') userId: string) {
     return this.ordemServicoService.addApoio(id, userId);

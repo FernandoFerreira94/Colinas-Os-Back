@@ -169,6 +169,7 @@ model Equipamentos {
   created_at       DateTime              @default(now())
 
   ordens_servico OrdemServico[]
+  ordens_os      OsEquipamento[]
 }
 
 // ─────────────────────────────────────────
@@ -177,6 +178,7 @@ model Equipamentos {
 
 model OrdemServico {
   id                String               @id @default(uuid())
+  codigo            String               @unique
   titulo            String
   descricao         String?
   tipo              TipoOS
@@ -206,7 +208,8 @@ model OrdemServico {
   atribuido_por_id String?
   atribuido_por    User?   @relation("OSAtribuidaPor", fields: [atribuido_por_id], references: [id])
 
-  apoios OsApoio[]
+  apoios         OsApoio[]
+  equipamentos_os OsEquipamento[]
 }
 
 model OsApoio {
@@ -217,6 +220,17 @@ model OsApoio {
   user    User         @relation(fields: [user_id], references: [id])
 
   @@unique([os_id, user_id])
+}
+
+model OsEquipamento {
+  id             String       @id @default(uuid())
+  os_id          String
+  os             OrdemServico @relation(fields: [os_id], references: [id])
+  equipamento_id String
+  equipamento    Equipamentos @relation(fields: [equipamento_id], references: [id])
+  created_at     DateTime     @default(now())
+
+  @@unique([os_id, equipamento_id])
 }
 
 // ─────────────────────────────────────────

@@ -66,6 +66,11 @@ export class CreateOrdemServicoDto {
   cargo_externo?: string;
 
   @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  equipamentos_ids?: string[];
+
+  @IsArray()
   @IsString({ each: true })
   @IsOptional()
   fotos?: string[];
