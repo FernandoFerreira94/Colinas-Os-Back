@@ -12,7 +12,11 @@
       "Bash(findstr :4000)",
       "Bash(taskkill /PID 13612 /F)",
       "Bash(cmd /c \"taskkill /PID 13612 /F\")",
-      "Bash(cmd /c taskkill /PID 13612 /F)"
+      "Bash(cmd /c taskkill /PID 13612 /F)",
+      "Bash(git clone:*)",
+      "Bash(npm install:*)",
+      "Bash(find . -name package.json -path */pixel-agents/* -not -path */node_modules/*)",
+      "Bash(cd webview-ui:*)"
     ]
   }
 }

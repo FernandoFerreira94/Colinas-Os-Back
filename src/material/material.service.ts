@@ -7,6 +7,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMaterialDto } from './dto/createMaterial.dto';
 import { UpdateMaterialDto } from './dto/updateMaterial.dto';
+import { FiltrarMaterialDto } from './dto/filtrar-material.dto';
+import { CreateSolicitacaoCompraDto } from './dto/create-solicitacao-compra.dto';
 
 @Injectable()
 export class MaterialService {
@@ -34,13 +36,58 @@ export class MaterialService {
     });
   }
 
-  async findAll() {
-    return await this.prisma.material.findMany({
+  async findAll(filtros: FiltrarMaterialDto = {}) {
+    const materiais = await this.prisma.material.findMany({
+      where: {
+        ...(filtros.departamento && { departamento: filtros.departamento as any }),
+        ...(filtros.subcategoria_id && { subcategoriaId: filtros.subcategoria_id }),
+        ...(filtros.nome && {
+          descricao: { contains: filtros.nome, mode: 'insensitive' },
+        }),
+        ...(filtros.categoria_id && {
+          subcategoria: { categoria_id: filtros.categoria_id },
+        }),
+      },
       orderBy: { createdAt: 'desc' },
-      include: {
-        subcategoria: true,
+      select: {
+        id: true,
+        codigo: true,
+        descricao: true,
+        unidade: true,
+        quantidade_estoque: true,
+        departamento: true,
+        subcategoria: {
+          select: {
+            id: true,
+            subCategoria: true,
+            categoria: {
+              select: {
+                id: true,
+                categoria: true,
+              },
+            },
+          },
+        },
       },
     });
+
+    return materiais.map((m) => ({
+      id: m.id,
+      codigo: m.codigo,
+      descricao: m.descricao,
+      unidade: m.unidade,
+      quantidade_estoque: m.quantidade_estoque,
+      departamento: m.departamento,
+      categoria: {
+        id: m.subcategoria.categoria.id,
+        nome: m.subcategoria.categoria.categoria,
+      },
+      subcategoria: {
+        id: m.subcategoria.id,
+        nome: m.subcategoria.subCategoria,
+      },
+      ...(m.quantidade_estoque === 0 && { sem_estoque: true }),
+    }));
   }
 
   async findById(id: string) {
@@ -80,6 +127,83 @@ export class MaterialService {
     return this.prisma.material.delete({
       where: { id },
     });
+  }
+
+  // ─── Solicitações de compra ────────────────────────────────────────────────
+
+  async createSolicitacaoCompra(
+    dto: CreateSolicitacaoCompraDto,
+    criadoPorId: string,
+  ) {
+    return this.prisma.solicitacaoCompra.create({
+      data: {
+        os_id: dto.os_id,
+        preventiva_id: dto.preventiva_id,
+        observacao: dto.observacao,
+        criado_por_id: criadoPorId,
+        itens: {
+          create: dto.itens.map((item) => ({
+            tipo: item.tipo,
+            material_id: item.material_id,
+            nome: item.nome,
+            descricao: item.descricao,
+            unidade: item.unidade,
+            imagem_url: item.imagem_url,
+            quantidade: item.quantidade,
+          })),
+        },
+      },
+      include: {
+        itens: {
+          include: {
+            material: {
+              select: {
+                id: true,
+                codigo: true,
+                descricao: true,
+                unidade: true,
+                marca: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async findSolicitacoesPendentes() {
+    return this.prisma.solicitacaoCompra.findMany({
+      where: { status: 'PENDENTE' },
+      orderBy: { criado_em: 'desc' },
+      include: {
+        itens: {
+          include: {
+            material: {
+              select: {
+                id: true,
+                codigo: true,
+                descricao: true,
+                unidade: true,
+                marca: true,
+                subcategoria: {
+                  select: {
+                    subCategoria: true,
+                    categoria: { select: { categoria: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async findMateriaisParaBaixa() {
+    // TODO: Implementar quando o model MaterialGasto for criado no schema.
+    // Deve retornar registros de MaterialGasto onde status_baixa = false,
+    // incluindo os_id, material (codigo, descricao, unidade) e quantidade_usada.
+    return [];
   }
 
   // --- helpers privados ---

@@ -6,8 +6,12 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { StatusOS, TipoOS } from '@prisma/client';
+import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { PermissaoGuard } from 'src/auth/guards/permissao.guard';
 import { CreateOrdemServicoDto } from './dto/create-ordem-servico.dto';
 import { UpdateOrdemServicoDto } from './dto/update-ordem-servico.dto';
 import { UpdateStatusOsDto } from './dto/update-status-os.dto';
@@ -55,6 +59,33 @@ export class OrdemServicoController {
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusOsDto) {
     return this.ordemServicoService.updateStatus(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissaoGuard)
+  @Patch(':id/solicitar-material')
+  solicitarMaterial(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.solicitarMaterial(id, user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissaoGuard)
+  @Patch(':id/fiscalizacao')
+  enviarParaFiscalizacao(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.enviarParaFiscalizacao(id, user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, PermissaoGuard)
+  @Patch(':id/finalizar')
+  finalizar(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.finalizar(id, user.sub);
   }
 
   @Post(':id/equipamento')

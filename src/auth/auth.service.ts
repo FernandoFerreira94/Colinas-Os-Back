@@ -34,6 +34,7 @@ export class AuthService {
       sub: user.id,
       matricula: user.matricula,
       is_admin: user.is_admin,
+      funcao: user.funcao,
     };
 
     return {

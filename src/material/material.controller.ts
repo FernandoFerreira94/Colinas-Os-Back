@@ -7,12 +7,16 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   HttpCode,
   HttpStatus,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { MaterialService } from './material.service';
 import { CreateMaterialDto } from './dto/createMaterial.dto';
 import { UpdateMaterialDto } from './dto/updateMaterial.dto';
+import { FiltrarMaterialDto } from './dto/filtrar-material.dto';
 
 @Controller('materiais')
 export class MaterialController {
@@ -24,8 +28,15 @@ export class MaterialController {
   }
 
   @Get()
-  findAll() {
-    return this.materialService.findAll();
+  findAll(@Query() filtros: FiltrarMaterialDto) {
+    return this.materialService.findAll(filtros);
+  }
+
+  // Rota específica ANTES de /:id
+  @UseGuards(JwtAuthGuard)
+  @Get('para-baixa')
+  findMateriaisParaBaixa() {
+    return this.materialService.findMateriaisParaBaixa();
   }
 
   @Get(':id')

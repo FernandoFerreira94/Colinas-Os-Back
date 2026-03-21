@@ -54,6 +54,17 @@ enum Prioridade {
   ALTA
 }
 
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  RECUSADA
+}
+
+enum TipoItemSolicitacao {
+  CADASTRADO
+  NAO_CADASTRADO
+}
+
 enum FuncaoUser {
   ELETRICISTA
   TECNICO_REFRIGERACAO
@@ -98,6 +109,8 @@ model User {
   ordens_apoio       OsApoio[]
   os_criadas         OrdemServico[] @relation("OSCriadaPor")
   os_atribuidas      OrdemServico[] @relation("OSAtribuidaPor")
+  historico_criado   OsHistorico[]  @relation("OSHistoricoCriadoPor")
+  solicitacoes       SolicitacaoCompra[]
 }
 
 // ─────────────────────────────────────────
@@ -208,9 +221,23 @@ model OrdemServico {
   atribuido_por_id String?
   atribuido_por    User?   @relation("OSAtribuidaPor", fields: [atribuido_por_id], references: [id])
 
-  apoios         OsApoio[]
+  apoios          OsApoio[]
   equipamentos_os OsEquipamento[]
+  historico       OsHistorico[]
+  solicitacoes    SolicitacaoCompra[]
 }
+
+model OsHistorico {
+  id             String       @id @default(uuid())
+  os_id          String
+  os             OrdemServico @relation(fields: [os_id], references: [id])
+  descricao      String
+  status_gerado  StatusOS
+  criado_por_id  String
+  criado_por     User         @relation("OSHistoricoCriadoPor", fields: [criado_por_id], references: [id])
+  criado_em      DateTime     @default(now())
+}
+
 
 model OsApoio {
   id      String       @id @default(uuid())
@@ -269,5 +296,39 @@ model Material {
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
+  itens_solicitacao SolicitacaoCompraItem[]
+
   @@map("materiais")
+}
+
+// ─────────────────────────────────────────
+// SOLICITAÇÕES DE COMPRA
+// ─────────────────────────────────────────
+
+model SolicitacaoCompra {
+  id            String            @id @default(uuid())
+  os_id         String?
+  os            OrdemServico?     @relation(fields: [os_id], references: [id])
+  preventiva_id String?
+  criado_por_id String
+  criado_por    User              @relation(fields: [criado_por_id], references: [id])
+  observacao    String?
+  status        StatusSolicitacao @default(PENDENTE)
+  criado_em     DateTime          @default(now())
+
+  itens SolicitacaoCompraItem[]
+}
+
+model SolicitacaoCompraItem {
+  id             String               @id @default(uuid())
+  solicitacao_id String
+  solicitacao    SolicitacaoCompra    @relation(fields: [solicitacao_id], references: [id])
+  tipo           TipoItemSolicitacao
+  material_id    String?
+  material       Material?            @relation(fields: [material_id], references: [id])
+  nome           String?
+  descricao      String?
+  unidade        String?
+  imagem_url     String?
+  quantidade     Float
 }

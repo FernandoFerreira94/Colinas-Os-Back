@@ -228,6 +228,65 @@ export class OrdemServicoService {
     });
   }
 
+  async solicitarMaterial(id: string, _userId: string) {
+    const os = await this.findOne(id);
+
+    if (os.status !== StatusOS.EM_EXECUCAO) {
+      throw new BadRequestException(
+        `Transição inválida: status atual é ${os.status}. Esperado: EM_EXECUCAO.`,
+      );
+    }
+
+    return this.prisma.ordemServico.update({
+      where: { id },
+      data: { status: StatusOS.AGUARDANDO_MATERIAL },
+      include: this.includeRelations,
+    });
+  }
+
+  async enviarParaFiscalizacao(id: string, _userId: string) {
+    const os = await this.findOne(id);
+
+    const statusPermitidos: StatusOS[] = [
+      StatusOS.EM_EXECUCAO,
+      StatusOS.AGUARDANDO_MATERIAL,
+    ];
+
+    if (!statusPermitidos.includes(os.status)) {
+      throw new BadRequestException(
+        `Transição inválida: status atual é ${os.status}. Permitido: EM_EXECUCAO ou AGUARDANDO_MATERIAL.`,
+      );
+    }
+
+    return this.prisma.ordemServico.update({
+      where: { id },
+      data: { status: StatusOS.AGUARDANDO_FISCALIZACAO },
+      include: this.includeRelations,
+    });
+  }
+
+  async finalizar(id: string, _userId: string) {
+    const os = await this.findOne(id);
+
+    const statusPermitidos: StatusOS[] = [
+      StatusOS.EM_EXECUCAO,
+      StatusOS.AGUARDANDO_MATERIAL,
+      StatusOS.AGUARDANDO_FISCALIZACAO,
+    ];
+
+    if (!statusPermitidos.includes(os.status)) {
+      throw new BadRequestException(
+        `Transição inválida: status atual é ${os.status}. Permitido: EM_EXECUCAO, AGUARDANDO_MATERIAL ou AGUARDANDO_FISCALIZACAO.`,
+      );
+    }
+
+    return this.prisma.ordemServico.update({
+      where: { id },
+      data: { status: StatusOS.FINALIZADA, finalizada_at: new Date() },
+      include: this.includeRelations,
+    });
+  }
+
   async remove(id: string) {
     await this.findOne(id);
 
