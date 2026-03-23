@@ -13,6 +13,7 @@ import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PermissaoGuard } from 'src/auth/guards/permissao.guard';
 import { CreateOrdemServicoDto } from './dto/create-ordem-servico.dto';
+import { RelatorioEtapaDto } from './dto/relatorio-etapa.dto';
 import { UpdateOrdemServicoDto } from './dto/update-ordem-servico.dto';
 import { UpdateStatusOsDto } from './dto/update-status-os.dto';
 import { OrdemServicoService } from './ordem-servico.service';
@@ -65,27 +66,52 @@ export class OrdemServicoController {
   @Patch(':id/solicitar-material')
   solicitarMaterial(
     @Param('id') id: string,
+    @Body() body: RelatorioEtapaDto,
     @CurrentUser() user: { sub: string },
   ) {
-    return this.ordemServicoService.solicitarMaterial(id, user.sub);
+    return this.ordemServicoService.solicitarMaterial(
+      id,
+      user.sub,
+      body.relatorio,
+    );
   }
 
   @UseGuards(JwtAuthGuard, PermissaoGuard)
   @Patch(':id/fiscalizacao')
   enviarParaFiscalizacao(
     @Param('id') id: string,
+    @Body() body: RelatorioEtapaDto,
     @CurrentUser() user: { sub: string },
   ) {
-    return this.ordemServicoService.enviarParaFiscalizacao(id, user.sub);
+    return this.ordemServicoService.enviarParaFiscalizacao(
+      id,
+      user.sub,
+      body.relatorio,
+    );
   }
 
   @UseGuards(JwtAuthGuard, PermissaoGuard)
   @Patch(':id/finalizar')
   finalizar(
     @Param('id') id: string,
+    @Body() body: RelatorioEtapaDto,
     @CurrentUser() user: { sub: string },
   ) {
-    return this.ordemServicoService.finalizar(id, user.sub);
+    return this.ordemServicoService.finalizar(id, user.sub, body.relatorio);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/recusar-fiscalizacao')
+  recusarFiscalizacao(
+    @Param('id') id: string,
+    @Body() body: RelatorioEtapaDto,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.recusarFiscalizacao(
+      id,
+      user.sub,
+      body.relatorio,
+    );
   }
 
   @Post(':id/equipamento')

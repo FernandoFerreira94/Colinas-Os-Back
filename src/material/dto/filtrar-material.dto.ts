@@ -1,9 +1,10 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Complexo } from '@prisma/client';
 
 export class FiltrarMaterialDto {
   @IsOptional()
-  @IsString()
-  departamento?: string;
+  @IsEnum(Complexo)
+  departamento?: Complexo;
 
   @IsOptional()
   @IsString()

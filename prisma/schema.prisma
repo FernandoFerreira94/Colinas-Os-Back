@@ -65,6 +65,12 @@ enum TipoItemSolicitacao {
   NAO_CADASTRADO
 }
 
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
 enum FuncaoUser {
   ELETRICISTA
   TECNICO_REFRIGERACAO
@@ -111,6 +117,8 @@ model User {
   os_atribuidas      OrdemServico[] @relation("OSAtribuidaPor")
   historico_criado   OsHistorico[]  @relation("OSHistoricoCriadoPor")
   solicitacoes       SolicitacaoCompra[]
+  materiais_gastos   MaterialGasto[] @relation("MateriaisGastosRegistradoPor")
+  movimentacoes      MovimentacaoEstoque[] @relation("MovimentacoesEstoqueUsuario")
 }
 
 // ─────────────────────────────────────────
@@ -225,6 +233,8 @@ model OrdemServico {
   equipamentos_os OsEquipamento[]
   historico       OsHistorico[]
   solicitacoes    SolicitacaoCompra[]
+  materiais_gastos    MaterialGasto[]
+  movimentacoes       MovimentacaoEstoque[]
 }
 
 model OsHistorico {
@@ -233,6 +243,7 @@ model OsHistorico {
   os             OrdemServico @relation(fields: [os_id], references: [id])
   descricao      String
   status_gerado  StatusOS
+  recusado       Boolean      @default(false)
   criado_por_id  String
   criado_por     User         @relation("OSHistoricoCriadoPor", fields: [criado_por_id], references: [id])
   criado_em      DateTime     @default(now())
@@ -297,6 +308,8 @@ model Material {
   updatedAt          DateTime              @updatedAt
 
   itens_solicitacao SolicitacaoCompraItem[]
+  gastos            MaterialGasto[]
+  movimentacoes     MovimentacaoEstoque[]
 
   @@map("materiais")
 }
@@ -331,4 +344,34 @@ model SolicitacaoCompraItem {
   unidade        String?
   imagem_url     String?
   quantidade     Float
+}
+
+// ─────────────────────────────────────────
+// MATERIAIS GASTOS
+// ─────────────────────────────────────────
+
+model MaterialGasto {
+  id                String       @id @default(uuid())
+  os_id             String
+  os                OrdemServico @relation(fields: [os_id], references: [id])
+  material_id       String
+  material          Material     @relation(fields: [material_id], references: [id])
+  quantidade        Int
+  registrado_por_id String
+  registrado_por    User         @relation("MateriaisGastosRegistradoPor", fields: [registrado_por_id], references: [id])
+  created_at        DateTime     @default(now())
+}
+
+model MovimentacaoEstoque {
+  id          String           @id @default(uuid())
+  material_id String
+  material    Material         @relation(fields: [material_id], references: [id])
+  tipo        TipoMovimentacao
+  quantidade  Int
+  os_id       String?
+  os          OrdemServico?    @relation(fields: [os_id], references: [id])
+  usuario_id  String
+  usuario     User             @relation("MovimentacoesEstoqueUsuario", fields: [usuario_id], references: [id])
+  descricao   String?
+  created_at  DateTime         @default(now())
 }

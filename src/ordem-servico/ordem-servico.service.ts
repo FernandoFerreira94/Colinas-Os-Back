@@ -29,6 +29,7 @@ export class OrdemServicoService {
         user: { select: { id: true, nameFull: true, funcao: true } },
       },
     },
+    materiais_gastos: true,
   };
 
   async findAll() {

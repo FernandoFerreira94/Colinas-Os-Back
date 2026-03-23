@@ -39,7 +39,7 @@ export class MaterialService {
   async findAll(filtros: FiltrarMaterialDto = {}) {
     const materiais = await this.prisma.material.findMany({
       where: {
-        ...(filtros.departamento && { departamento: filtros.departamento as any }),
+        ...(filtros.departamento && { departamento: filtros.departamento }),
         ...(filtros.subcategoria_id && { subcategoriaId: filtros.subcategoria_id }),
         ...(filtros.nome && {
           descricao: { contains: filtros.nome, mode: 'insensitive' },
@@ -53,6 +53,9 @@ export class MaterialService {
         id: true,
         codigo: true,
         descricao: true,
+        cor: true,
+        marca: true,
+        price: true,
         unidade: true,
         quantidade_estoque: true,
         departamento: true,
@@ -71,23 +74,7 @@ export class MaterialService {
       },
     });
 
-    return materiais.map((m) => ({
-      id: m.id,
-      codigo: m.codigo,
-      descricao: m.descricao,
-      unidade: m.unidade,
-      quantidade_estoque: m.quantidade_estoque,
-      departamento: m.departamento,
-      categoria: {
-        id: m.subcategoria.categoria.id,
-        nome: m.subcategoria.categoria.categoria,
-      },
-      subcategoria: {
-        id: m.subcategoria.id,
-        nome: m.subcategoria.subCategoria,
-      },
-      ...(m.quantidade_estoque === 0 && { sem_estoque: true }),
-    }));
+    return materiais;
   }
 
   async findById(id: string) {

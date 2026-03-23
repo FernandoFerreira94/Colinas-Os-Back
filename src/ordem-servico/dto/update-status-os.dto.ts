@@ -1,5 +1,5 @@
 import { StatusOS } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsOptional, IsUUID } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class UpdateStatusOsDto {
   @IsEnum(StatusOS)
@@ -13,4 +13,16 @@ export class UpdateStatusOsDto {
   @IsUUID()
   @IsOptional()
   atribuido_por_id?: string;
+
+  @IsUUID()
+  @IsOptional()
+  usuario_id?: string;
+
+  @IsString()
+  @IsOptional()
+  relatorio?: string;
+
+  @IsString()
+  @IsOptional()
+  observacao_fiscal?: string;
 }

@@ -35,8 +35,7 @@ export class CreateMaterialDto {
   @MinLength(1, { message: 'Selecione a sub categoria' })
   subcategoriaId: string;
 
-  @IsString()
-  @MinLength(1, { message: 'Informe o departamento' })
+  @IsEnum(Complexo, { message: 'Departamento inválido' })
   departamento: Complexo;
 
   @IsString()
