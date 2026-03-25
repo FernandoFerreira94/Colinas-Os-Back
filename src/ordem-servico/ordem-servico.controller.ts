@@ -57,12 +57,18 @@ export class OrdemServicoController {
     return this.ordemServicoService.update(id, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusOsDto) {
-    return this.ordemServicoService.updateStatus(id, dto);
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateStatusOsDto,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.updateStatus(id, dto, user.sub);
   }
 
-  @UseGuards(JwtAuthGuard, PermissaoGuard)
+  // FIX: removido PermissaoGuard — técnicos comuns precisam solicitar material
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/solicitar-material')
   solicitarMaterial(
     @Param('id') id: string,
@@ -73,10 +79,12 @@ export class OrdemServicoController {
       id,
       user.sub,
       body.relatorio,
+      body.apoio_ids,
     );
   }
 
-  @UseGuards(JwtAuthGuard, PermissaoGuard)
+  // FIX: removido PermissaoGuard — técnicos comuns precisam enviar para fiscalização
+  @UseGuards(JwtAuthGuard)
   @Patch(':id/fiscalizacao')
   enviarParaFiscalizacao(
     @Param('id') id: string,
@@ -87,6 +95,37 @@ export class OrdemServicoController {
       id,
       user.sub,
       body.relatorio,
+      body.apoio_ids,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/pausar')
+  pausar(
+    @Param('id') id: string,
+    @Body() body: RelatorioEtapaDto,
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.pausar(
+      id,
+      user.sub,
+      body.relatorio,
+      body.apoio_ids,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/retomar-execucao')
+  retomarExecucao(
+    @Param('id') id: string,
+    @Body() body: { tecnico_id: string; atribuido_por_id?: string },
+    @CurrentUser() user: { sub: string },
+  ) {
+    return this.ordemServicoService.retomarExecucao(
+      id,
+      user.sub,
+      body.tecnico_id,
+      body.atribuido_por_id,
     );
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { MateriaisGastosService } from './materiais-gastos.service';
@@ -20,5 +20,11 @@ export class MateriaisGastosController {
   @Get('os/:osId')
   findByOs(@Param('osId') osId: string) {
     return this.service.findByOs(osId);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  remove(@Param('id') id: string) {
+    return this.service.remove(id);
   }
 }

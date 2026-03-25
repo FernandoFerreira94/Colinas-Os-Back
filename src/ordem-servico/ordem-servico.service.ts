@@ -1,14 +1,22 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { StatusOS, TipoOS } from '@prisma/client';
+import { FuncaoUser, StatusOS, TipoOS } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateOrdemServicoDto } from './dto/create-ordem-servico.dto';
 import { UpdateOrdemServicoDto } from './dto/update-ordem-servico.dto';
 import { UpdateStatusOsDto } from './dto/update-status-os.dto';
 import { gerarCodigoOS } from './helpers/gerar-codigo-os.helper';
+
+const FUNCOES_LIDER: FuncaoUser[] = [
+  FuncaoUser.LIDER,
+  FuncaoUser.SUPERVISOR,
+  FuncaoUser.COORDENADOR,
+  FuncaoUser.GERENTE_OPERACIONAL,
+];
 
 @Injectable()
 export class OrdemServicoService {
@@ -29,7 +37,49 @@ export class OrdemServicoService {
         user: { select: { id: true, nameFull: true, funcao: true } },
       },
     },
-    materiais_gastos: true,
+    materiais_gastos: {
+      include: {
+        material: {
+          select: {
+            id: true,
+            codigo: true,
+            descricao: true,
+            unidade: true,
+            marca: true,
+            price: true,
+          },
+        },
+        registrado_por: {
+          select: { id: true, nameFull: true, funcao: true },
+        },
+      },
+      orderBy: { created_at: 'asc' as const },
+    },
+    historico: {
+      include: {
+        criado_por: { select: { id: true, nameFull: true, funcao: true } },
+      },
+      orderBy: { criado_em: 'asc' as const },
+    },
+    solicitacoes: {
+      include: {
+        itens: {
+          include: {
+            material: {
+              select: {
+                id: true,
+                codigo: true,
+                descricao: true,
+                unidade: true,
+                price: true,
+              },
+            },
+          },
+        },
+        criado_por: { select: { id: true, nameFull: true, funcao: true } },
+      },
+      orderBy: { criado_em: 'asc' as const },
+    },
   };
 
   async findAll() {
@@ -78,38 +128,55 @@ export class OrdemServicoService {
 
   async create(dto: CreateOrdemServicoDto) {
     const { equipamentos_ids, ...osData } = dto;
+    const os = await this.prisma.$transaction(async (tx) => {
+      const codigo = await gerarCodigoOS(
+        tx,
+        osData.tipo,
+        osData.categoria,
+      );
+     
 
-    return this.prisma.$transaction(async (tx) => {
-      const codigo = await gerarCodigoOS(tx as any, osData.tipo, osData.categoria);
-
-      const os = await tx.ordemServico.create({
-        data: {
-          ...osData,
-          codigo,
-          fotos: osData.fotos ?? [],
-          status: 'ABERTA',
-          tecnico_id: osData.tecnico_id ?? null,
-          equipamento_id:
-            equipamentos_ids?.[0] ?? osData.equipamento_id ?? null,
-        },
-      });
-
-      if (equipamentos_ids && equipamentos_ids.length > 0) {
-        await tx.osEquipamento.createMany({
-          data: equipamentos_ids.map((equipamento_id) => ({
-            os_id: os.id,
-            equipamento_id,
-          })),
-          skipDuplicates: true,
-        });
-      }
-
-      return tx.ordemServico.findUnique({
-        where: { id: os.id },
-        include: this.includeRelations,
-      });
+    const createdOs = await tx.ordemServico.create({
+      data: {
+        ...osData,
+        codigo,
+        fotos: osData.fotos ?? [],
+        status: 'ABERTA',
+        tecnico_id: osData.tecnico_id ?? null,
+        equipamento_id:
+          equipamentos_ids?.[0] ?? osData.equipamento_id ?? null,
+      },
     });
-  }
+
+    if (equipamentos_ids?.length) {
+      await tx.osEquipamento.createMany({
+        data: equipamentos_ids.map((equipamento_id) => ({
+          os_id: createdOs.id,
+          equipamento_id,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    await tx.osHistorico.create({
+      data: {
+        os_id: createdOs.id,
+        status_gerado: StatusOS.ABERTA,
+        descricao:
+          'Ordem de Serviço criada e aguardando início da execução.',
+        criado_por_id: osData.criado_por_id,
+      },
+    });
+
+    return createdOs.id; // 👈 retorna só o ID
+  });
+
+  // ✅ FORA da transaction (zero risco de timeout)
+  return this.prisma.ordemServico.findUnique({
+    where: { id: os },
+    include: this.includeRelations,
+  });
+}
 
   async update(id: string, dto: UpdateOrdemServicoDto) {
     await this.findOne(id);
@@ -126,10 +193,11 @@ export class OrdemServicoService {
     });
   }
 
-  async updateStatus(id: string, dto: UpdateStatusOsDto) {
-    await this.findOne(id);
+  async updateStatus(id: string, dto: UpdateStatusOsDto, userId: string) {
+    const os = await this.findOne(id);
 
-    if (dto.status === StatusOS.EM_EXECUCAO && !dto.tecnico_id) {
+    // só exige tecnico_id se a OS ainda não tem um (novo início)
+    if (dto.status === StatusOS.EM_EXECUCAO && !dto.tecnico_id && !os.tecnico_id) {
       throw new BadRequestException(
         'tecnico_id é obrigatório para iniciar a execução.',
       );
@@ -142,7 +210,7 @@ export class OrdemServicoService {
       atribuido_por_id?: string;
     } = { status: dto.status };
 
-    if (dto.status === StatusOS.EM_EXECUCAO) {
+    if (dto.status === StatusOS.EM_EXECUCAO && dto.tecnico_id) {
       data.tecnico_id = dto.tecnico_id;
     }
 
@@ -154,19 +222,50 @@ export class OrdemServicoService {
       data.atribuido_por_id = dto.atribuido_por_id;
     }
 
-    return this.prisma.ordemServico.update({
+    const updatedOs = await this.prisma.ordemServico.update({
       where: { id },
       data,
       include: this.includeRelations,
     });
+
+    // sempre cria historico — userId vem do JWT via controller
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: dto.status,
+        descricao: dto.relatorio ?? `Status alterado para ${dto.status}`,
+        criado_por_id: userId,
+      },
+    });
+
+    return updatedOs;
+  }
+
+  // ─── Adicionar apoio (helper interno) ─────────────────────────────────────
+
+  private async adicionarApoios(osId: string, apoioIds: string[]) {
+    for (const apoioId of apoioIds) {
+      await this.prisma.osApoio.upsert({
+        where: { os_id_user_id: { os_id: osId, user_id: apoioId } },
+        create: { os_id: osId, user_id: apoioId },
+        update: {},
+      });
+    }
   }
 
   async addApoio(osId: string, userId: string) {
     const os = await this.findOne(osId);
 
-    if (os.status !== StatusOS.EM_EXECUCAO) {
+    const statusPermitidos: StatusOS[] = [
+      StatusOS.EM_EXECUCAO,
+      StatusOS.PAUSADA,
+      StatusOS.AGUARDANDO_MATERIAL,
+      StatusOS.AGUARDANDO_FISCALIZACAO,
+    ];
+
+    if (!statusPermitidos.includes(os.status)) {
       throw new BadRequestException(
-        'Só é possível adicionar apoio em OS com status EM_EXECUCAO.',
+        'Só é possível adicionar apoio em OS ativa (em execução, pausada, aguardando material ou fiscalização).',
       );
     }
 
@@ -229,7 +328,12 @@ export class OrdemServicoService {
     });
   }
 
-  async solicitarMaterial(id: string, _userId: string) {
+  async solicitarMaterial(
+    id: string,
+    userId: string,
+    relatorio: string,
+    apoioIds?: string[],
+  ) {
     const os = await this.findOne(id);
 
     if (os.status !== StatusOS.EM_EXECUCAO) {
@@ -238,14 +342,34 @@ export class OrdemServicoService {
       );
     }
 
-    return this.prisma.ordemServico.update({
+    if (apoioIds && apoioIds.length > 0) {
+      await this.adicionarApoios(id, apoioIds);
+    }
+
+    const updated = await this.prisma.ordemServico.update({
       where: { id },
       data: { status: StatusOS.AGUARDANDO_MATERIAL },
       include: this.includeRelations,
     });
+
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: StatusOS.AGUARDANDO_MATERIAL,
+        descricao: relatorio,
+        criado_por_id: userId,
+      },
+    });
+
+    return updated;
   }
 
-  async enviarParaFiscalizacao(id: string, _userId: string) {
+  async enviarParaFiscalizacao(
+    id: string,
+    userId: string,
+    relatorio: string,
+    apoioIds?: string[],
+  ) {
     const os = await this.findOne(id);
 
     const statusPermitidos: StatusOS[] = [
@@ -259,14 +383,115 @@ export class OrdemServicoService {
       );
     }
 
-    return this.prisma.ordemServico.update({
+    if (apoioIds && apoioIds.length > 0) {
+      await this.adicionarApoios(id, apoioIds);
+    }
+
+    const updated = await this.prisma.ordemServico.update({
       where: { id },
       data: { status: StatusOS.AGUARDANDO_FISCALIZACAO },
       include: this.includeRelations,
     });
+
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: StatusOS.AGUARDANDO_FISCALIZACAO,
+        descricao: relatorio,
+        criado_por_id: userId,
+      },
+    });
+
+    return updated;
   }
 
-  async finalizar(id: string, _userId: string) {
+  async pausar(
+    id: string,
+    userId: string,
+    relatorio: string,
+    apoioIds?: string[],
+  ) {
+    const os = await this.findOne(id);
+
+    if (os.status !== StatusOS.EM_EXECUCAO) {
+      throw new BadRequestException(
+        'Só é possível pausar OS com status EM_EXECUCAO.',
+      );
+    }
+
+    if (apoioIds && apoioIds.length > 0) {
+      await this.adicionarApoios(id, apoioIds);
+    }
+
+    const updated = await this.prisma.ordemServico.update({
+      where: { id },
+      data: { status: StatusOS.PAUSADA },
+      include: this.includeRelations,
+    });
+
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: StatusOS.PAUSADA,
+        descricao: relatorio,
+        criado_por_id: userId,
+      },
+    });
+
+    return updated;
+  }
+
+  async retomarExecucao(
+    id: string,
+    userId: string,
+    tecnicoId: string,
+    atribuidoPorId?: string,
+  ) {
+    const os = await this.findOne(id);
+
+    const statusPermitidos: StatusOS[] = [
+      StatusOS.PAUSADA,
+      StatusOS.RECUSADO,
+    ];
+
+    if (!statusPermitidos.includes(os.status)) {
+      throw new BadRequestException(
+        `Só é possível retomar OS com status PAUSADA ou RECUSADO.`,
+      );
+    }
+
+    // Se o novo técnico é diferente do atual, o anterior vira apoio
+    if (os.tecnico_id && os.tecnico_id !== tecnicoId) {
+      await this.prisma.osApoio.upsert({
+        where: { os_id_user_id: { os_id: id, user_id: os.tecnico_id } },
+        create: { os_id: id, user_id: os.tecnico_id },
+        update: {},
+      });
+    }
+
+    const updated = await this.prisma.ordemServico.update({
+      where: { id },
+      data: {
+        status: StatusOS.EM_EXECUCAO,
+        tecnico_id: tecnicoId,
+        ...(atribuidoPorId ? { atribuido_por_id: atribuidoPorId } : {}),
+      },
+      include: this.includeRelations,
+    });
+
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: StatusOS.EM_EXECUCAO,
+        descricao: 'Execução retomada.',
+        criado_por_id: userId,
+      },
+    });
+
+    return updated;
+  }
+
+  async finalizar(id: string, userId: string, relatorio: string) {
     const os = await this.findOne(id);
 
     const statusPermitidos: StatusOS[] = [
@@ -281,11 +506,69 @@ export class OrdemServicoService {
       );
     }
 
-    return this.prisma.ordemServico.update({
+    const updated = await this.prisma.ordemServico.update({
       where: { id },
       data: { status: StatusOS.FINALIZADA, finalizada_at: new Date() },
       include: this.includeRelations,
     });
+
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: StatusOS.FINALIZADA,
+        descricao: relatorio,
+        criado_por_id: userId,
+      },
+    });
+
+    return updated;
+  }
+
+  async recusarFiscalizacao(id: string, userId: string, motivo: string) {
+    const os = await this.findOne(id);
+
+    if (os.status !== StatusOS.AGUARDANDO_FISCALIZACAO) {
+      throw new BadRequestException(
+        'Só é possível recusar fiscalização em OS com status AGUARDANDO_FISCALIZACAO.',
+      );
+    }
+
+    const usuario = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { funcao: true, is_admin: true },
+    });
+
+    if (!usuario) {
+      throw new NotFoundException('Usuário não encontrado.');
+    }
+
+    const isAutorizado =
+      usuario.is_admin || FUNCOES_LIDER.includes(usuario.funcao);
+
+    if (!isAutorizado) {
+      throw new ForbiddenException(
+        'Apenas líderes, supervisores, coordenadores ou administradores podem recusar a fiscalização.',
+      );
+    }
+
+    // FIX: status vai para RECUSADO (não EM_EXECUCAO) — permite reiniciar via IniciarOSDialog
+    const updated = await this.prisma.ordemServico.update({
+      where: { id },
+      data: { status: StatusOS.RECUSADO },
+      include: this.includeRelations,
+    });
+
+    await this.prisma.osHistorico.create({
+      data: {
+        os_id: id,
+        status_gerado: StatusOS.RECUSADO,
+        descricao: motivo,
+        recusado: true,
+        criado_por_id: userId,
+      },
+    });
+
+    return updated;
   }
 
   async remove(id: string) {

@@ -39,6 +39,12 @@ export class MaterialController {
     return this.materialService.findMateriaisParaBaixa();
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('estoque-baixo')
+  findMateriaisEstoqueBaixo() {
+    return this.materialService.findMateriaisEstoqueBaixo();
+  }
+
   @Get(':id')
   findById(@Param('id') id: string) {
     return this.materialService.findById(id);

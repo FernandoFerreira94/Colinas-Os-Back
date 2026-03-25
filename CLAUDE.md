@@ -118,7 +118,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ─── ENUMS ───────────────────────────────────────────────
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
 
 enum CategoriaEquipamento {
   Eletrica
@@ -132,12 +134,6 @@ enum Unidade {
   Cx
   Ll
   Pc
-}
-
-enum Departamento {
-  Shopping_Colinas
-  Green_Tower
-  Mururuo
 }
 
 enum Complexo {
@@ -156,10 +152,12 @@ enum TipoOS {
 enum StatusOS {
   ABERTA
   EM_EXECUCAO
+  PAUSADA
   AGUARDANDO_MATERIAL
   MATERIAL_COMPRADO
   MATERIAL_RECUSADO
   AGUARDANDO_FISCALIZACAO
+  RECUSADO
   FINALIZADA
 }
 
@@ -169,23 +167,21 @@ enum Prioridade {
   ALTA
 }
 
-enum StatusPreventiva {
-  AGENDADA
-  EM_EXECUCAO
-  FINALIZADA
-  ATRASADA
-}
-
 enum StatusSolicitacao {
   PENDENTE
   APROVADA
   RECUSADA
-  COMPRADO
+}
+
+enum TipoItemSolicitacao {
+  CADASTRADO
+  NAO_CADASTRADO
 }
 
 enum TipoMovimentacao {
   ENTRADA
   SAIDA
+  AJUSTE
 }
 
 enum FuncaoUser {
@@ -199,7 +195,23 @@ enum FuncaoUser {
   GERENTE_OPERACIONAL
 }
 
-// ─── USER ────────────────────────────────────────────────
+enum StatusPreventiva {
+  AGENDADA
+  EM_EXECUCAO
+  FINALIZADA
+  ATRASADA
+}
+
+enum Plantao {
+  Diurno
+  Noturno
+  Comercial1
+  Comercial2
+}
+
+// ─────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────
 
 model User {
   id               String     @id @default(uuid())
@@ -209,7 +221,7 @@ model User {
   funcao           FuncaoUser
   is_admin         Boolean    @default(false)
   is_almoxarife    Boolean    @default(false)
-  plantao          String
+  plantao          Plantao
   equipe           String
   ativo            Boolean    @default(true)
   date_register    DateTime
@@ -220,19 +232,37 @@ model User {
   created_at       DateTime   @default(now())
 
   ordens_responsavel OrdemServico[] @relation("TecnicoResponsavel")
+  ordens_apoio       OsApoio[]
   os_criadas         OrdemServico[] @relation("OSCriadaPor")
   os_atribuidas      OrdemServico[] @relation("OSAtribuidaPor")
-  ordens_apoio       OsApoio[]
+  historico_criado   OsHistorico[]  @relation("OSHistoricoCriadoPor")
   solicitacoes       SolicitacaoCompra[]
-  turno              TurnoFuncionario[]
+  materiais_gastos   MaterialGasto[] @relation("MateriaisGastosRegistradoPor")
+  movimentacoes      MovimentacaoEstoque[] @relation("MovimentacoesEstoqueUsuario")
 }
 
-// ─── LOCALIZAÇÃO ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// CATEGORIA EQUIPAMENTO
+// ─────────────────────────────────────────
+
+model Categoria_Equipamento {
+  id         String               @id @default(uuid())
+  categoria  CategoriaEquipamento
+  tag        String               @unique
+  tipo       String               @unique
+  created_at DateTime             @default(now())
+
+  equipamentos Equipamentos[]
+}
+
+// ─────────────────────────────────────────
+// LOCALIZAÇÃO
+// ─────────────────────────────────────────
 
 model Localizacao {
   id         String   @id @default(uuid())
   complexo   Complexo
-  andar      String
+  andar      String?
   area       String?
   created_at DateTime @default(now())
 
@@ -240,7 +270,9 @@ model Localizacao {
   ordens_servico OrdemServico[]
 }
 
-// ─── EMPRESA TERCEIRIZADA ─────────────────────────────────
+// ─────────────────────────────────────────
+// EMPRESA TERCEIRIZADA
+// ─────────────────────────────────────────
 
 model EmpresaTerceirizada {
   id         String   @id @default(uuid())
@@ -254,54 +286,44 @@ model EmpresaTerceirizada {
   ordens_servico OrdemServico[]
 }
 
-// ─── CATEGORIA EQUIPAMENTO ────────────────────────────────
-
-model CategoriaEquipamentoModel {
-  id           String               @id @default(uuid())
-  categoria    CategoriaEquipamento
-  tag          String               @unique
-  tipo         String               @unique
-  created_at   DateTime             @default(now())
-
-  equipamentos Equipamentos[]
-
-  @@map("Categoria_Equipamento")
-}
-
-// ─── EQUIPAMENTOS ─────────────────────────────────────────
+// ─────────────────────────────────────────
+// EQUIPAMENTOS
+// ─────────────────────────────────────────
 
 model Equipamentos {
-  id               String                    @id @default(uuid())
-  ativo            Boolean                   @default(true)
+  id               String                @id @default(uuid())
+  ativo            Boolean               @default(true)
   name_equipamento String
-  tag_formatada    String                    @unique
+  tag_formatada    String                @unique
   num_tag          Int
   categoria_id     String
-  categoria        CategoriaEquipamentoModel @relation(fields: [categoria_id], references: [id])
+  categoria        Categoria_Equipamento @relation(fields: [categoria_id], references: [id])
   localizacao_id   String?
-  localizacao      Localizacao?              @relation(fields: [localizacao_id], references: [id])
+  localizacao      Localizacao?          @relation(fields: [localizacao_id], references: [id])
   empresa_id       String?
-  empresa          EmpresaTerceirizada?      @relation(fields: [empresa_id], references: [id])
+  empresa          EmpresaTerceirizada?  @relation(fields: [empresa_id], references: [id])
   modelo           String?
   fabricante       String?
   local_instalacao String?
   descricao        String?
   fotos            String[]
-  created_at       DateTime                  @default(now())
+  created_at       DateTime              @default(now())
 
   ordens_servico OrdemServico[]
   ordens_os      OsEquipamento[]
   preventivas    Preventiva[]
 }
 
-// ─── ORDEM DE SERVIÇO ─────────────────────────────────────
+// ─────────────────────────────────────────
+// ORDEM DE SERVIÇO
+// ─────────────────────────────────────────
 
 model OrdemServico {
   id                String               @id @default(uuid())
+  codigo            String               @unique
   titulo            String
   descricao         String?
   tipo              TipoOS
-  categoria         String?
   status            StatusOS             @default(ABERTA)
   prioridade        Prioridade           @default(MEDIA)
   complexo          Complexo
@@ -313,26 +335,41 @@ model OrdemServico {
   tecnico           User?                @relation("TecnicoResponsavel", fields: [tecnico_id], references: [id])
   criado_por_id     String
   criado_por        User                 @relation("OSCriadaPor", fields: [criado_por_id], references: [id])
-  atribuido_por_id  String?
-  atribuido_por     User?                @relation("OSAtribuidaPor", fields: [atribuido_por_id], references: [id])
   empresa_id        String?
   empresa           EmpresaTerceirizada? @relation(fields: [empresa_id], references: [id])
+  preventiva_id     String?
+  categoria         String?
   empresa_nome      String?
   tecnico_externo   String?
   cargo_externo     String?
-  preventiva_id     String?
   fotos             String[]
   observacao_fiscal String?
   created_at        DateTime             @default(now())
   updated_at        DateTime             @updatedAt
   finalizada_at     DateTime?
+  atribuido_por_id String?
+  atribuido_por    User?   @relation("OSAtribuidaPor", fields: [atribuido_por_id], references: [id])
 
   apoios          OsApoio[]
   equipamentos_os OsEquipamento[]
+  historico       OsHistorico[]
+  solicitacoes    SolicitacaoCompra[]
   materiais_gastos    MaterialGasto[]
-  solicitacoes        SolicitacaoCompra[]
-  checklist_respostas ChecklistResposta[]
+  movimentacoes       MovimentacaoEstoque[]
 }
+
+model OsHistorico {
+  id             String       @id @default(uuid())
+  os_id          String
+  os             OrdemServico @relation(fields: [os_id], references: [id])
+  descricao      String
+  status_gerado  StatusOS
+  recusado       Boolean      @default(false)
+  criado_por_id  String
+  criado_por     User         @relation("OSHistoricoCriadoPor", fields: [criado_por_id], references: [id])
+  criado_em      DateTime     @default(now())
+}
+
 
 model OsApoio {
   id      String       @id @default(uuid())
@@ -355,57 +392,9 @@ model OsEquipamento {
   @@unique([os_id, equipamento_id])
 }
 
-// ─── PREVENTIVAS ──────────────────────────────────────────
-
-model Preventiva {
-  id              String            @id @default(uuid())
-  equipamento_id  String
-  equipamento     Equipamentos      @relation(fields: [equipamento_id], references: [id])
-  checklist_id    String
-  checklist       ChecklistTemplate @relation(fields: [checklist_id], references: [id])
-  frequencia_dias Int
-  status          StatusPreventiva  @default(AGENDADA)
-  data_agendada   DateTime
-  data_finalizada DateTime?
-  created_at      DateTime          @default(now())
-
-  ordens_servico OrdemServico[]
-}
-
-model ChecklistTemplate {
-  id         String          @id @default(uuid())
-  nome       String
-  tipo       String
-  created_at DateTime        @default(now())
-
-  itens       ChecklistItem[]
-  preventivas Preventiva[]
-}
-
-model ChecklistItem {
-  id          String            @id @default(uuid())
-  template_id String
-  template    ChecklistTemplate @relation(fields: [template_id], references: [id])
-  descricao   String
-  ordem       Int
-  obrigatorio Boolean           @default(true)
-
-  respostas ChecklistResposta[]
-}
-
-model ChecklistResposta {
-  id         String       @id @default(uuid())
-  os_id      String
-  os         OrdemServico @relation(fields: [os_id], references: [id])
-  item_id    String
-  item       ChecklistItem @relation(fields: [item_id], references: [id])
-  conforme   Boolean
-  observacao String?
-
-  @@unique([os_id, item_id])
-}
-
-// ─── MATERIAIS ────────────────────────────────────────────
+// ─────────────────────────────────────────
+// MATERIAIS
+// ─────────────────────────────────────────
 
 model Categoria_Material {
   id            String                  @id @default(uuid())
@@ -430,7 +419,7 @@ model Material {
   cor                String?
   quantidade_minima  Int?
   quantidade_estoque Int                   @default(0)
-  departamento       Departamento
+  departamento       Complexo
   marca              String?
   price              Decimal               @db.Decimal(10, 2)
   unidade            Unidade
@@ -439,11 +428,59 @@ model Material {
   createdAt          DateTime              @default(now())
   updatedAt          DateTime              @updatedAt
 
-  movimentacoes MovimentacaoEstoque[]
-  gastos        MaterialGasto[]
-  solicitacoes  SolicitacaoCompra[]
+  itens_solicitacao SolicitacaoCompraItem[]
+  gastos            MaterialGasto[]
+  movimentacoes     MovimentacaoEstoque[]
 
   @@map("materiais")
+}
+
+// ─────────────────────────────────────────
+// SOLICITAÇÕES DE COMPRA
+// ─────────────────────────────────────────
+
+model SolicitacaoCompra {
+  id            String            @id @default(uuid())
+  os_id         String?
+  os            OrdemServico?     @relation(fields: [os_id], references: [id])
+  preventiva_id String?
+  criado_por_id String
+  criado_por    User              @relation(fields: [criado_por_id], references: [id])
+  observacao    String?
+  status        StatusSolicitacao @default(PENDENTE)
+  criado_em     DateTime          @default(now())
+
+  itens SolicitacaoCompraItem[]
+}
+
+model SolicitacaoCompraItem {
+  id             String               @id @default(uuid())
+  solicitacao_id String
+  solicitacao    SolicitacaoCompra    @relation(fields: [solicitacao_id], references: [id])
+  tipo           TipoItemSolicitacao
+  material_id    String?
+  material       Material?            @relation(fields: [material_id], references: [id])
+  nome           String?
+  descricao      String?
+  unidade        String?
+  imagem_url     String?
+  quantidade     Float
+}
+
+// ─────────────────────────────────────────
+// MATERIAIS GASTOS
+// ─────────────────────────────────────────
+
+model MaterialGasto {
+  id                String       @id @default(uuid())
+  os_id             String
+  os                OrdemServico @relation(fields: [os_id], references: [id])
+  material_id       String
+  material          Material     @relation(fields: [material_id], references: [id])
+  quantidade        Int
+  registrado_por_id String
+  registrado_por    User         @relation("MateriaisGastosRegistradoPor", fields: [registrado_por_id], references: [id])
+  created_at        DateTime     @default(now())
 }
 
 model MovimentacaoEstoque {
@@ -451,60 +488,51 @@ model MovimentacaoEstoque {
   material_id String
   material    Material         @relation(fields: [material_id], references: [id])
   tipo        TipoMovimentacao
-  quantidade  Float
-  observacao  String?
+  quantidade  Int
+  os_id       String?
+  os          OrdemServico?    @relation(fields: [os_id], references: [id])
+  usuario_id  String
+  usuario     User             @relation("MovimentacoesEstoqueUsuario", fields: [usuario_id], references: [id])
+  descricao   String?
   created_at  DateTime         @default(now())
 }
 
-model MaterialGasto {
-  id          String       @id @default(uuid())
-  os_id       String
-  os          OrdemServico @relation(fields: [os_id], references: [id])
-  material_id String
-  material    Material     @relation(fields: [material_id], references: [id])
-  quantidade  Float
-  created_at  DateTime     @default(now())
+// ─────────────────────────────────────────
+// PREVENTIVAS
+// ─────────────────────────────────────────
+
+model ChecklistTemplate {
+  id         String          @id @default(uuid())
+  nome       String
+  tipo       String
+  created_at DateTime        @default(now())
+
+  itens       ChecklistItem[]
+  preventivas Preventiva[]
 }
 
-model SolicitacaoCompra {
-  id             String            @id @default(uuid())
-  os_id          String?
-  os             OrdemServico?     @relation(fields: [os_id], references: [id])
-  material_id    String?
-  material       Material?         @relation(fields: [material_id], references: [id])
-  nome_material  String?
-  quantidade     Float
-  justificativa  String?
-  status         StatusSolicitacao @default(PENDENTE)
-  solicitante_id String
-  solicitante    User              @relation(fields: [solicitante_id], references: [id])
-  created_at     DateTime          @default(now())
-  updated_at     DateTime          @updatedAt
+model ChecklistItem {
+  id          String            @id @default(uuid())
+  template_id String
+  template    ChecklistTemplate @relation(fields: [template_id], references: [id])
+  descricao   String
+  ordem       Int
+  obrigatorio Boolean           @default(true)
 }
 
-// ─── TURNOS ───────────────────────────────────────────────
-
-model Turno {
-  id          String             @id @default(uuid())
-  nome        String
-  hora_inicio String
-  hora_fim    String
-  created_at  DateTime           @default(now())
-
-  funcionarios TurnoFuncionario[]
+model Preventiva {
+  id              String            @id @default(uuid())
+  equipamento_id  String
+  equipamento     Equipamentos      @relation(fields: [equipamento_id], references: [id])
+  checklist_id    String
+  checklist       ChecklistTemplate @relation(fields: [checklist_id], references: [id])
+  frequencia_dias Int
+  status          StatusPreventiva  @default(AGENDADA)
+  data_agendada   DateTime
+  data_finalizada DateTime?
+  created_at      DateTime          @default(now())
 }
 
-model TurnoFuncionario {
-  id          String    @id @default(uuid())
-  user_id     String
-  user        User      @relation(fields: [user_id], references: [id])
-  turno_id    String
-  turno       Turno     @relation(fields: [turno_id], references: [id])
-  data_inicio DateTime
-  data_fim    DateTime?
-
-  @@unique([user_id, turno_id, data_inicio])
-}
 ```
 
 ---
@@ -648,3 +676,267 @@ src/hooks/modulo/
 10. ⏳ Dashboard (queries agregadas)
 11. ⏳ Relatórios
 12. ⏳ Turnos / Plantão
+
+## 14. Contexto do Projeto
+
+Backend do sistema de facility management do Shopping Colinas. API REST consumida pelo frontend Next.js.
+
+**Status atual: ~88% concluído**
+
+| Módulo           | Status  |
+| ---------------- | ------- |
+| Login / Auth     | ✅ 100% |
+| Dashboard        | ✅ 100% |
+| Equipamentos     | ✅ 100% |
+| Funcionários     | ✅ 100% |
+| Plantão          | ✅ 100% |
+| User             | ✅ 100% |
+| Ordem de Serviço | ✅ ~95% |
+| Materiais        | ✅ ~95% |
+| Configuração     | 🔨 ~90% |
+| Preventivas      | 🔨 ~60% |
+| Relatórios       | ⏳ ~10% |
+
+---
+
+## 15. Stack & Dependências
+
+```
+@nestjs/core + @nestjs/common
+@nestjs/jwt + @nestjs/passport  ← auth
+@prisma/client + prisma
+class-validator + class-transformer
+bcrypt
+```
+
+---
+
+## 16. Estrutura de Pastas
+
+```
+/src
+  /auth/                  ← JWT auth, guards, decorators
+  /common/
+    /decorators/
+    /guards/
+    /interceptors/
+    /filters/
+    /pipes/
+  /prisma/                ← PrismaService
+  /ordens-de-servico/
+    ordens-de-servico.controller.ts
+    ordens-de-servico.service.ts
+    dto/
+  /equipamentos/
+  /funcionarios/
+  /materiais/
+  /materiais-gastos/
+  /solicitacoes-compra/
+  /preventivas/
+  /plantao/
+  /relatorios/
+  /configuracao/
+  /user/
+  /dashboard/
+```
+
+---
+
+## 17. Padrões de Código
+
+### Controller
+
+```typescript
+@Controller('ordens-de-servico')
+@UseGuards(JwtAuthGuard)
+export class OrdensDeServicoController {
+  constructor(private readonly service: OrdensDeServicoService) {}
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.service.findOne(id);
+  }
+}
+```
+
+### Service
+
+```typescript
+@Injectable()
+export class OrdensDeServicoService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async findOne(id: string): Promise<OrdemDeServico> {
+    const os = await this.prisma.ordemDeServico.findUnique({ where: { id } });
+    if (!os) throw new NotFoundException('OS não encontrada');
+    return os;
+  }
+}
+```
+
+### DTOs
+
+```typescript
+// Sempre validar com class-validator
+export class CreateOrdemDeServicoDto {
+  @IsString()
+  @IsNotEmpty()
+  titulo: string;
+
+  @IsEnum(Prioridade)
+  prioridade: Prioridade;
+}
+```
+
+---
+
+## 18. Módulos em Andamento
+
+### Preventivas (~60%) — PRIORIDADE ALTA
+
+**Pendente:**
+
+- CRUD preventivas — rotas completas (em andamento)
+- GET preventivas vencidas — endpoint para dashboard
+- Agendamento de preventiva no equipamento
+
+**Referência:** Lógica documentada no Notion  
+`/📐 Lógica — Agendamento de Preventiva no Equipamento`
+
+### Ordem de Serviço (~95%)
+
+**Concluído:**
+
+- Fluxo de status completo com todas as transições
+- `inicializarOs` — EM_EXECUCAO + apoios
+- `addApoio` — aceita OS em PAUSADA, AGUARDANDO_MATERIAL e AGUARDANDO_FISCALIZACAO
+- `recusarFiscalizacao` — status vai para RECUSADO (não mais EM_EXECUCAO)
+- `materiais-gastos.service.ts`:
+  - Aceita EM_EXECUCAO, AGUARDANDO_MATERIAL e MATERIAL_COMPRADO
+  - `remove()` com estorno de estoque + movimentação ENTRADA
+
+**Pendente:**
+
+- Endpoint OS aguardando fiscalização (para notificações)
+
+### Materiais (~95%)
+
+**Concluído:**
+
+- `GET /materiais` — filtros por departamento, categoria, subcategoria e nome
+- `POST /materiais-gastos` — registrar material utilizado em OS
+- `useUpdateSolicitacaoStatus` — APROVAR/RECUSAR solicitação de compra
+
+### Relatórios (~10%)
+
+**Pendente (design front pronto):**
+
+- GET dados por módulo (OS, Preventivas, Materiais, Equipamentos)
+- Filtros por período/data
+- Agregações: total por status, por técnico, por categoria
+
+### Configuração (~90%)
+
+**Pendente:**
+
+- Endpoint alterar senha (PATCH /user/senha ou similar)
+- Validar senha atual antes de atualizar
+
+---
+
+## 19. Fluxo de Status da OS (Backend)
+
+```typescript
+enum StatusOs {
+  ABERTA
+  EM_EXECUCAO
+  PAUSADA
+  AGUARDANDO_MATERIAL
+  MATERIAL_COMPRADO
+  AGUARDANDO_FISCALIZACAO
+  RECUSADO          // ← recusarFiscalizacao vai aqui
+  CONCLUIDA
+  CANCELADA
+}
+```
+
+**Transições validadas (11 total, 3 riscos mapeados — ver auditoria)**
+
+**Regra crítica:** Todo endpoint que muda status deve validar transição permitida antes de persistir.
+
+---
+
+## 20. Regras de Negócio Importantes
+
+### Materiais Gastos
+
+- Só pode registrar gasto em OS com status: `EM_EXECUCAO`, `AGUARDANDO_MATERIAL`, `MATERIAL_COMPRADO`
+- `remove()` deve:
+  1. Estornar quantidade ao estoque do material
+  2. Registrar movimentação do tipo `ENTRADA`
+
+### Departamentos de Material
+
+- Valores: `SHOPPING_COLINAS`, `GREEN_TOWER`, `ESTACIONAMENTO`
+- Usar exatamente esses valores no model `Material`
+
+### Solicitações de Compra
+
+- Status: `PENDENTE` → `APROVADO` | `RECUSADO`
+- Endpoint: PATCH com `{ status: 'APROVADO' | 'RECUSADO' }`
+
+### Preventivas no Equipamento
+
+- Agendamento cria vínculo Preventiva ↔ Equipamento
+- Ver lógica completa no Notion antes de implementar
+
+---
+
+## 21. Prisma — Boas Práticas
+
+```typescript
+// Sempre tipar o retorno
+async findMany(): Promise<Material[]> {
+  return this.prisma.material.findMany()
+}
+
+// Migrations — NUNCA usar db push em produção
+// Usar: npx prisma migrate dev --name descricao
+```
+
+**Referência de skill:** `/mnt/skills/user/prisma-migration-helper/SKILL.md`
+
+---
+
+## 22. Auth & Guards
+
+```typescript
+// Todos os endpoints protegidos por padrão
+@UseGuards(JwtAuthGuard)
+
+// Endpoints públicos
+@Public()  // decorator custom
+
+// Roles
+@Roles('ADMIN', 'LIDER')
+```
+
+**Hook frontend relacionado:** `useOsPendentesFiscalizacao` usa `isLiderOuAdmin` para ativar refetch.
+
+---
+
+## 23. Regras Gerais
+
+- Sempre validar DTO com `class-validator`
+- Sempre lançar exceções semânticas: `NotFoundException`, `BadRequestException`, `ForbiddenException`
+- Nunca expor dados sensíveis no retorno (senha, tokens)
+- Toda mudança de status deve ser validada contra transições permitidas
+- Toda operação de estoque deve gerar movimentação no histórico
+
+# CLAUDE.md — Backend (Colinas)
+
+> Projeto: Colinas — Gestão de Ativos e Ordens de Serviço  
+> Stack: NestJS · Prisma · PostgreSQL · TypeScript  
+> Atualizado: 2026-03-24
+
+---

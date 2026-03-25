@@ -7,7 +7,6 @@ import { Complexo } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateLocalizacaoDto } from './dto/create-localizacao.dto';
 import { UpdateLocalizacaoDto } from './dto/update-localizacao.dto';
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class LocalizacaoService {
@@ -39,7 +38,7 @@ export class LocalizacaoService {
   }
 
   async create(dto: CreateLocalizacaoDto) {
-    // ✅ verifica duplicidade antes de criar
+    // se já existe, retorna a existente (idempotente)
     const existe = await this.prisma.localizacao.findFirst({
       where: {
         complexo: dto.complexo,
@@ -49,21 +48,10 @@ export class LocalizacaoService {
     });
 
     if (existe) {
-      throw new ConflictException(
-        'Já existe uma localização com esse complexo, andar e área.',
-      );
+      return existe;
     }
 
-    try {
-      return await this.prisma.localizacao.create({ data: dto });
-    } catch (error) {
-      if (error instanceof PrismaClientKnownRequestError) {
-        if (error.code === 'P2002') {
-          throw new ConflictException('Localização já cadastrada.');
-        }
-      }
-      throw error;
-    }
+    return await this.prisma.localizacao.create({ data: dto });
   }
 
   async update(id: string, dto: UpdateLocalizacaoDto) {

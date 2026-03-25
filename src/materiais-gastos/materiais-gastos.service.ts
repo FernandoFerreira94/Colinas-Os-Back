@@ -20,9 +20,10 @@ export class MateriaisGastosService {
       throw new NotFoundException('Ordem de Serviço não encontrada');
     }
 
-    if (os.status !== 'EM_EXECUCAO') {
+    const statusPermitidos = ['EM_EXECUCAO', 'AGUARDANDO_MATERIAL', 'MATERIAL_COMPRADO'];
+    if (!statusPermitidos.includes(os.status)) {
       throw new BadRequestException(
-        'Só é possível registrar materiais em OS com status EM_EXECUCAO',
+        'Só é possível registrar materiais em OS com status EM_EXECUCAO, AGUARDANDO_MATERIAL ou MATERIAL_COMPRADO',
       );
     }
 
@@ -96,6 +97,39 @@ export class MateriaisGastosService {
       }
 
       return gastos;
+    });
+  }
+
+  async remove(id: string) {
+    const gasto = await this.prisma.materialGasto.findUnique({
+      where: { id },
+      include: { material: true },
+    });
+
+    if (!gasto) {
+      throw new NotFoundException('Registro de material gasto não encontrado');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.material.update({
+        where: { id: gasto.material_id },
+        data: { quantidade_estoque: { increment: gasto.quantidade } },
+      });
+
+      await tx.movimentacaoEstoque.create({
+        data: {
+          material_id: gasto.material_id,
+          tipo: 'ENTRADA',
+          quantidade: gasto.quantidade,
+          os_id: gasto.os_id,
+          usuario_id: gasto.registrado_por_id,
+          descricao: `Estorno de material gasto — registro cancelado`,
+        },
+      });
+
+      await tx.materialGasto.delete({ where: { id } });
+
+      return { success: true };
     });
   }
 

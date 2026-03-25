@@ -3,12 +3,13 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMaterialDto } from './dto/createMaterial.dto';
 import { UpdateMaterialDto } from './dto/updateMaterial.dto';
 import { FiltrarMaterialDto } from './dto/filtrar-material.dto';
-import { CreateSolicitacaoCompraDto } from './dto/create-solicitacao-compra.dto';
+import { CreateItemSolicitacaoDto, CreateSolicitacaoCompraDto } from './dto/create-solicitacao-compra.dto';
 
 @Injectable()
 export class MaterialService {
@@ -58,6 +59,7 @@ export class MaterialService {
         price: true,
         unidade: true,
         quantidade_estoque: true,
+        quantidade_minima: true,
         departamento: true,
         subcategoria: {
           select: {
@@ -122,39 +124,62 @@ export class MaterialService {
     dto: CreateSolicitacaoCompraDto,
     criadoPorId: string,
   ) {
-    return this.prisma.solicitacaoCompra.create({
-      data: {
-        os_id: dto.os_id,
-        preventiva_id: dto.preventiva_id,
-        observacao: dto.observacao,
-        criado_por_id: criadoPorId,
-        itens: {
-          create: dto.itens.map((item) => ({
-            tipo: item.tipo,
-            material_id: item.material_id,
-            nome: item.nome,
-            descricao: item.descricao,
-            unidade: item.unidade,
-            imagem_url: item.imagem_url,
-            quantidade: item.quantidade,
-          })),
+    return this.prisma.$transaction(async (tx) => {
+      const solicitacao = await tx.solicitacaoCompra.create({
+        data: {
+          os_id: dto.os_id,
+          preventiva_id: dto.preventiva_id,
+          observacao: dto.observacao,
+          criado_por_id: criadoPorId,
+          itens: {
+            create: dto.itens.map((item) => ({
+              tipo: item.tipo,
+              material_id: item.material_id,
+              nome: item.nome,
+              descricao: item.descricao,
+              unidade: item.unidade,
+              imagem_url: item.imagem_url,
+              quantidade: item.quantidade,
+            })),
+          },
         },
-      },
-      include: {
-        itens: {
-          include: {
-            material: {
-              select: {
-                id: true,
-                codigo: true,
-                descricao: true,
-                unidade: true,
-                marca: true,
+        include: {
+          itens: {
+            include: {
+              material: {
+                select: {
+                  id: true,
+                  codigo: true,
+                  descricao: true,
+                  unidade: true,
+                  marca: true,
+                },
               },
             },
           },
         },
-      },
+      });
+
+      // Se há os_id, verifica se precisa mudar status da OS para AGUARDANDO_MATERIAL
+      if (dto.os_id) {
+        const os = await tx.ordemServico.findUnique({ where: { id: dto.os_id } });
+        if (os && os.status === 'EM_EXECUCAO') {
+          await tx.ordemServico.update({
+            where: { id: dto.os_id },
+            data: { status: 'AGUARDANDO_MATERIAL' },
+          });
+          await tx.osHistorico.create({
+            data: {
+              os_id: dto.os_id,
+              status_gerado: 'AGUARDANDO_MATERIAL',
+              descricao: dto.observacao ?? 'Solicitação de material criada — aguardando compra',
+              criado_por_id: criadoPorId,
+            },
+          });
+        }
+      }
+
+      return solicitacao;
     });
   }
 
@@ -186,11 +211,172 @@ export class MaterialService {
     });
   }
 
+  async updateSolicitacaoStatus(
+    id: string,
+    acao: 'APROVAR' | 'RECUSAR',
+    usuarioId: string,
+    observacao?: string,
+  ) {
+    const solicitacao = await this.prisma.solicitacaoCompra.findUnique({
+      where: { id },
+      include: { itens: true },
+    });
+
+    if (!solicitacao) {
+      throw new NotFoundException('Solicitação não encontrada');
+    }
+
+    if (solicitacao.status !== 'PENDENTE') {
+      throw new BadRequestException('Solicitação já foi processada');
+    }
+
+    const novoStatus = acao === 'APROVAR' ? 'APROVADA' : 'RECUSADA';
+    const novoStatusOS =
+      acao === 'APROVAR' ? 'MATERIAL_COMPRADO' : 'MATERIAL_RECUSADO';
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.solicitacaoCompra.update({
+        where: { id },
+        data: { status: novoStatus },
+      });
+
+      if (solicitacao.os_id) {
+        await tx.ordemServico.update({
+          where: { id: solicitacao.os_id },
+          data: { status: novoStatusOS },
+        });
+
+        await tx.osHistorico.create({
+          data: {
+            os_id: solicitacao.os_id,
+            status_gerado: novoStatusOS,
+            descricao:
+              observacao ??
+              (acao === 'APROVAR'
+                ? 'Material comprado — solicitação aprovada pelo almoxarife'
+                : 'Solicitação de material recusada pelo almoxarife'),
+            recusado: acao === 'RECUSAR',
+            criado_por_id: usuarioId,
+          },
+        });
+      }
+    });
+
+    return this.prisma.solicitacaoCompra.findUnique({
+      where: { id },
+      include: { itens: true },
+    });
+  }
+
   async findMateriaisParaBaixa() {
     // TODO: Implementar quando o model MaterialGasto for criado no schema.
     // Deve retornar registros de MaterialGasto onde status_baixa = false,
     // incluindo os_id, material (codigo, descricao, unidade) e quantidade_usada.
     return [];
+  }
+
+  async findSolicitacoesCompraByOs(osId: string) {
+    return this.prisma.solicitacaoCompra.findMany({
+      where: { os_id: osId },
+      orderBy: { criado_em: 'desc' },
+      include: {
+        itens: {
+          include: {
+            material: {
+              select: {
+                id: true,
+                codigo: true,
+                descricao: true,
+                unidade: true,
+                marca: true,
+                price: true,
+              },
+            },
+          },
+        },
+        criado_por: {
+          select: { id: true, nameFull: true, funcao: true },
+        },
+      },
+    });
+  }
+
+  async addItemToSolicitacao(solicitacaoId: string, item: CreateItemSolicitacaoDto) {
+    const solicitacao = await this.prisma.solicitacaoCompra.findUnique({
+      where: { id: solicitacaoId },
+    });
+    if (!solicitacao) {
+      throw new NotFoundException('Solicitação não encontrada');
+    }
+    if (solicitacao.status !== 'PENDENTE') {
+      throw new BadRequestException('Não é possível adicionar itens a uma solicitação já processada');
+    }
+
+    return this.prisma.solicitacaoCompraItem.create({
+      data: {
+        solicitacao_id: solicitacaoId,
+        tipo: item.tipo,
+        material_id: item.material_id,
+        nome: item.nome,
+        descricao: item.descricao,
+        unidade: item.unidade,
+        imagem_url: item.imagem_url,
+        quantidade: item.quantidade,
+      },
+      include: {
+        material: {
+          select: {
+            id: true,
+            codigo: true,
+            descricao: true,
+            unidade: true,
+            marca: true,
+          },
+        },
+      },
+    });
+  }
+
+  async removeItemFromSolicitacao(itemId: string) {
+    const item = await this.prisma.solicitacaoCompraItem.findUnique({
+      where: { id: itemId },
+      include: { solicitacao: true },
+    });
+    if (!item) {
+      throw new NotFoundException('Item de solicitação não encontrado');
+    }
+    if (item.solicitacao.status !== 'PENDENTE') {
+      throw new BadRequestException('Não é possível remover itens de uma solicitação já processada');
+    }
+
+    await this.prisma.solicitacaoCompraItem.delete({ where: { id: itemId } });
+    return { success: true };
+  }
+
+  async findMateriaisEstoqueBaixo() {
+    return this.prisma.material.findMany({
+      where: {
+        quantidade_minima: { not: null },
+      },
+      select: {
+        id: true,
+        codigo: true,
+        descricao: true,
+        unidade: true,
+        quantidade_estoque: true,
+        quantidade_minima: true,
+        departamento: true,
+        subcategoria: {
+          select: {
+            subCategoria: true,
+            categoria: { select: { categoria: true } },
+          },
+        },
+      },
+      orderBy: { quantidade_estoque: 'asc' },
+    }).then(materiais =>
+      materiais.filter(m => m.quantidade_minima !== null && m.quantidade_estoque <= m.quantidade_minima)
+    );
   }
 
   // --- helpers privados ---

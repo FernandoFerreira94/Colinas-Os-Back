@@ -1,4 +1,5 @@
 import { Complexo, Prioridade, TipoOS } from '@prisma/client';
+import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
@@ -7,6 +8,10 @@ import {
   IsString,
   IsUUID,
 } from 'class-validator';
+
+function emptyToUndefined({ value }: { value: unknown }) {
+  return value === '' ? undefined : value;
+}
 
 export class CreateOrdemServicoDto {
   @IsString()
@@ -17,6 +22,7 @@ export class CreateOrdemServicoDto {
   @IsOptional()
   tecnico_id?: string; // ✅ adicionar de volta como opcional
 
+  @Transform(emptyToUndefined)
   @IsString()
   @IsOptional()
   descricao?: string;
@@ -49,18 +55,22 @@ export class CreateOrdemServicoDto {
   @IsOptional()
   empresa_id?: string;
 
+  @Transform(emptyToUndefined)
   @IsString()
   @IsOptional()
   categoria?: string;
 
+  @Transform(emptyToUndefined)
   @IsString()
   @IsOptional()
   empresa_nome?: string;
 
+  @Transform(emptyToUndefined)
   @IsString()
   @IsOptional()
   tecnico_externo?: string;
 
+  @Transform(emptyToUndefined)
   @IsString()
   @IsOptional()
   cargo_externo?: string;

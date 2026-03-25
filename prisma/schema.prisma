@@ -41,10 +41,12 @@ enum TipoOS {
 enum StatusOS {
   ABERTA
   EM_EXECUCAO
+  PAUSADA
   AGUARDANDO_MATERIAL
   MATERIAL_COMPRADO
   MATERIAL_RECUSADO
   AGUARDANDO_FISCALIZACAO
+  RECUSADO
   FINALIZADA
 }
 
@@ -80,6 +82,13 @@ enum FuncaoUser {
   ALMOXARIFE
   COORDENADOR
   GERENTE_OPERACIONAL
+}
+
+enum StatusPreventiva {
+  AGENDADA
+  EM_EXECUCAO
+  FINALIZADA
+  ATRASADA
 }
 
 enum Plantao {
@@ -191,6 +200,7 @@ model Equipamentos {
 
   ordens_servico OrdemServico[]
   ordens_os      OsEquipamento[]
+  preventivas    Preventiva[]
 }
 
 // ─────────────────────────────────────────
@@ -374,4 +384,40 @@ model MovimentacaoEstoque {
   usuario     User             @relation("MovimentacoesEstoqueUsuario", fields: [usuario_id], references: [id])
   descricao   String?
   created_at  DateTime         @default(now())
+}
+
+// ─────────────────────────────────────────
+// PREVENTIVAS
+// ─────────────────────────────────────────
+
+model ChecklistTemplate {
+  id         String          @id @default(uuid())
+  nome       String
+  tipo       String
+  created_at DateTime        @default(now())
+
+  itens       ChecklistItem[]
+  preventivas Preventiva[]
+}
+
+model ChecklistItem {
+  id          String            @id @default(uuid())
+  template_id String
+  template    ChecklistTemplate @relation(fields: [template_id], references: [id])
+  descricao   String
+  ordem       Int
+  obrigatorio Boolean           @default(true)
+}
+
+model Preventiva {
+  id              String            @id @default(uuid())
+  equipamento_id  String
+  equipamento     Equipamentos      @relation(fields: [equipamento_id], references: [id])
+  checklist_id    String
+  checklist       ChecklistTemplate @relation(fields: [checklist_id], references: [id])
+  frequencia_dias Int
+  status          StatusPreventiva  @default(AGENDADA)
+  data_agendada   DateTime
+  data_finalizada DateTime?
+  created_at      DateTime          @default(now())
 }

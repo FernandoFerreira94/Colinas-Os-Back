@@ -20,6 +20,7 @@ export class EquipamentoService {
     localizacao: true, // novo
     empresa: true, // novo
     ordens_servico: true,
+    preventivas: true,
   };
 
   async createEquipamento(createEqupamento: Create_EquipamentoDto) {

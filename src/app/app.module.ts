@@ -12,6 +12,7 @@ import { LocalizacaoModule } from 'src/localizacao/localizacao.module';
 import { EmpresasTerceirizadasModule } from 'src/empresas-terceirizadas/empresas-terceirizadas.module';
 import { OrdemServicoModule } from 'src/ordem-servico/ordem-servico.module';
 import { MateriaisGastosModule } from 'src/materiais-gastos/materiais-gastos.module';
+import { PreventivaModule } from 'src/preventiva/preventiva.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { MateriaisGastosModule } from 'src/materiais-gastos/materiais-gastos.mod
     EmpresasTerceirizadasModule,
     OrdemServicoModule,
     MateriaisGastosModule,
+    PreventivaModule,
   ],
   controllers: [AppController],
   providers: [AppService],
