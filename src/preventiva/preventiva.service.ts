@@ -119,6 +119,15 @@ export class PreventivaService {
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   async create(dto: CreatePreventivaDto) {
+
+    const existente = await this.prisma.preventiva.findMany({
+      where: { equipamento_id: dto.equipamento_id }
+    });
+
+    if (existente) {
+      throw new BadRequestException('Preventiva duplicada para o equipamento.');
+    }
+    
     const equipamento = await this.prisma.equipamentos.findUnique({
       where: { id: dto.equipamento_id },
       include: { categoria: true },
