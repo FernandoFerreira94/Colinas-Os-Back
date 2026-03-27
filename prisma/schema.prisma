@@ -410,14 +410,16 @@ model ChecklistItem {
 }
 
 model Preventiva {
-  id              String            @id @default(uuid())
-  equipamento_id  String
-  equipamento     Equipamentos      @relation(fields: [equipamento_id], references: [id])
-  checklist_id    String
-  checklist       ChecklistTemplate @relation(fields: [checklist_id], references: [id])
-  frequencia_dias Int
-  status          StatusPreventiva  @default(AGENDADA)
-  data_agendada   DateTime
-  data_finalizada DateTime?
-  created_at      DateTime          @default(now())
+  id                  String            @id @default(uuid())
+  equipamento_id      String
+  equipamento         Equipamentos      @relation(fields: [equipamento_id], references: [id])
+  checklist_id        String
+  checklist           ChecklistTemplate @relation(fields: [checklist_id], references: [id])
+  frequencia_dias     Int
+  status              StatusPreventiva  @default(AGENDADA)
+  data_agendada       DateTime
+  data_finalizada     DateTime?
+  checklist_resultado Json?
+  observacoes         String?
+  created_at          DateTime          @default(now())
 }

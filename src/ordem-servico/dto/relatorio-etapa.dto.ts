@@ -9,4 +9,9 @@ export class RelatorioEtapaDto {
   @IsUUID('4', { each: true })
   @IsOptional()
   apoio_ids?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  fotos?: string[];
 }

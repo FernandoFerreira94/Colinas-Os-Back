@@ -222,23 +222,37 @@ export class OrdemServicoService {
       data.atribuido_por_id = dto.atribuido_por_id;
     }
 
-    const updatedOs = await this.prisma.ordemServico.update({
-      where: { id },
-      data,
-      include: this.includeRelations,
-    });
+    // Mantém apenas escritas leves dentro da transação para evitar timeout (P2028)
+    await this.prisma.$transaction([
+      this.prisma.ordemServico.update({ where: { id }, data }),
+      this.prisma.osHistorico.create({
+        data: {
+          os_id: id,
+          status_gerado: dto.status,
+          descricao: dto.relatorio ?? `Status alterado para ${dto.status}`,
+          criado_por_id: userId,
+          recusado: dto.status === StatusOS.MATERIAL_RECUSADO,
+        },
+      }),
+      ...(dto.status === StatusOS.MATERIAL_RECUSADO
+        ? [
+            this.prisma.solicitacaoCompra.updateMany({
+              where: { os_id: id, status: 'PENDENTE' },
+              data: { status: 'RECUSADA' },
+            }),
+          ]
+        : []),
+      ...(dto.status === StatusOS.MATERIAL_COMPRADO
+        ? [
+            this.prisma.solicitacaoCompra.updateMany({
+              where: { os_id: id, status: 'PENDENTE' },
+              data: { status: 'APROVADA' },
+            }),
+          ]
+        : []),
+    ]);
 
-    // sempre cria historico — userId vem do JWT via controller
-    await this.prisma.osHistorico.create({
-      data: {
-        os_id: id,
-        status_gerado: dto.status,
-        descricao: dto.relatorio ?? `Status alterado para ${dto.status}`,
-        criado_por_id: userId,
-      },
-    });
-
-    return updatedOs;
+    return this.findOne(id);
   }
 
   // ─── Adicionar apoio (helper interno) ─────────────────────────────────────
@@ -410,6 +424,7 @@ export class OrdemServicoService {
     userId: string,
     relatorio: string,
     apoioIds?: string[],
+    fotos?: string[],
   ) {
     const os = await this.findOne(id);
 
@@ -425,7 +440,10 @@ export class OrdemServicoService {
 
     const updated = await this.prisma.ordemServico.update({
       where: { id },
-      data: { status: StatusOS.PAUSADA },
+      data: {
+        status: StatusOS.PAUSADA,
+        ...(fotos && fotos.length > 0 ? { fotos: { push: fotos } } : {}),
+      },
       include: this.includeRelations,
     });
 
@@ -491,7 +509,13 @@ export class OrdemServicoService {
     return updated;
   }
 
-  async finalizar(id: string, userId: string, relatorio: string) {
+  async finalizar(
+    id: string,
+    userId: string,
+    relatorio: string,
+    apoioIds?: string[],
+    fotos?: string[],
+  ) {
     const os = await this.findOne(id);
 
     const statusPermitidos: StatusOS[] = [
@@ -506,9 +530,17 @@ export class OrdemServicoService {
       );
     }
 
+    if (apoioIds && apoioIds.length > 0) {
+      await this.adicionarApoios(id, apoioIds);
+    }
+
     const updated = await this.prisma.ordemServico.update({
       where: { id },
-      data: { status: StatusOS.FINALIZADA, finalizada_at: new Date() },
+      data: {
+        status: StatusOS.FINALIZADA,
+        finalizada_at: new Date(),
+        ...(fotos && fotos.length > 0 ? { fotos: { push: fotos } } : {}),
+      },
       include: this.includeRelations,
     });
 

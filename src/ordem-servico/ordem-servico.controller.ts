@@ -111,6 +111,7 @@ export class OrdemServicoController {
       user.sub,
       body.relatorio,
       body.apoio_ids,
+      body.fotos,
     );
   }
 
@@ -136,7 +137,7 @@ export class OrdemServicoController {
     @Body() body: RelatorioEtapaDto,
     @CurrentUser() user: { sub: string },
   ) {
-    return this.ordemServicoService.finalizar(id, user.sub, body.relatorio);
+    return this.ordemServicoService.finalizar(id, user.sub, body.relatorio, body.apoio_ids, body.fotos);
   }
 
   @UseGuards(JwtAuthGuard)

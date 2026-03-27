@@ -129,7 +129,12 @@ export class PreventivaService {
     }
 
     const categoria = equipamento.categoria.categoria;
-    const dataAgendada = await this.calcularDataAgendada(categoria, dto.data_inicio);
+    const dataInicio = dto.data_inicio ?? (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + dto.frequencia_dias);
+      return d.toISOString();
+    })();
+    const dataAgendada = await this.calcularDataAgendada(categoria, dataInicio);
 
     const checklistId =
       dto.checklist_id ?? (await this.obterOuCriarChecklistPadrao(categoria));
@@ -192,6 +197,9 @@ export class PreventivaService {
     if (dto.status) data.status = dto.status;
     if (dto.data_finalizada) data.data_finalizada = new Date(dto.data_finalizada);
     if (dto.frequencia_dias) data.frequencia_dias = dto.frequencia_dias;
+    if (dto.data_agendada) data.data_agendada = new Date(dto.data_agendada);
+    if (dto.checklist_resultado !== undefined) data.checklist_resultado = dto.checklist_resultado;
+    if (dto.observacoes !== undefined) data.observacoes = dto.observacoes;
 
     return this.prisma.preventiva.update({
       where: { id },
