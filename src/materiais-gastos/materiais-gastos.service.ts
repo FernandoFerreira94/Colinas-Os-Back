@@ -8,7 +8,7 @@ import { CreateMaterialGastoDto } from './dto/create-material-gasto.dto';
 
 @Injectable()
 export class MateriaisGastosService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async registrar(dto: CreateMaterialGastoDto, usuarioId: string) {
     // 1. Valida OS e status
@@ -42,7 +42,7 @@ export class MateriaisGastosService {
       if (material.quantidade_estoque < item.quantidade) {
         throw new BadRequestException(
           `Estoque insuficiente para "${material.descricao}". ` +
-            `Disponível: ${material.quantidade_estoque}, solicitado: ${item.quantidade}`,
+          `Disponível: ${material.quantidade_estoque}, solicitado: ${item.quantidade}`,
         );
       }
     }
