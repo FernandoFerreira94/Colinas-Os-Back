@@ -1,68 +1,82 @@
-# Colinas — Backend
+# CCG Workflow
 
-## Stack
-NestJS · Prisma · PostgreSQL · class-validator · class-transformer · JWT Guards  
-Front: Next.js + React Query
+1. Claude → lê este arquivo, divide em steps
+2. Codex → backend (NestJS, Prisma, migrations)
+3. Gemini → frontend (Next.js, Tailwind, shadcn/ui)
+4. Claude → revisa e integra
 
-## Roles
-`ELETRICISTA | TECNICO_REFRIGERACAO | OFICIAL_GERAL | LIDER | SUPERVISOR | ALMOXARIFE | COORDENADOR | GERENTE_OPERACIONAL`  
-Líder/Admin: `is_admin === true || funcao in [LIDER, SUPERVISOR, COORDENADOR, GERENTE_OPERACIONAL]`  
-Podem: criar OS em nome de outro · definir técnico · alterar status · adicionar apoios
+---
 
-## OS — Campos-chave
-`criado_por_id` · `tecnico_id` · `atribuido_por_id`  
-`equipamento_id` = principal · `equipamentos_os` = demais  
+# Stack
+
+NestJS · Prisma · PostgreSQL · class-validator · class-transformer · JWT Guards · Supabase (DB+Storage)
+
+# Roles
+
+`ELETRICISTA | TECNICO_REFRIGERACAO | OFICIAL_GERAL | LIDER | SUPERVISOR | ALMOXARIFE | COORDENADOR | GERENTE_OPERACIONAL`
+
+Lider/Admin: `is_admin === true || funcao in [LIDER, SUPERVISOR, COORDENADOR, GERENTE_OPERACIONAL]`
+
+`is_almoxarifado`: estoque, entrada/saída, notificações
+
+`funcao` vem no JWT — mudança de permissão exige re-login
+
+# OS
+
+Campos: `criado_por_id · tecnico_id · atribuido_por_id · equipamento_id (principal) · equipamentos_os`
+
 Categorias: `Elétrica | Refrigeração | Civil | Hidráulica | Dados/TI | Outros`
 
-## OS — Fluxo
-`ABERTA → EM_EXECUCAO → AGUARDANDO_MATERIAL → MATERIAL_COMPRADO → EM_EXECUCAO → AGUARDANDO_FISCALIZACAO → FINALIZADA`  
-Reprovado: `AGUARDANDO_FISCALIZACAO → RECUSADO`  
-Regras: `tecnico_id` obrigatório ao iniciar · `finalizada_at` automático · toda troca valida transição e gera histórico
+Fluxo: `ABERTA → EM_EXECUCAO → AGUARDANDO_MATERIAL → MATERIAL_COMPRADO → EM_EXECUCAO → AGUARDANDO_FISCALIZACAO → FINALIZADA`
 
-## Histórico
-Sempre `statusHistorico: { status, data }[]` — nunca `preStatus`
+Reprovado: `AGUARDANDO_FISCALIZACAO → RECUSADO`
 
-## Equipamentos
-`tag_formatada = ${tag_categoria}-${num_tag.padStart(2,'0')}` ex: `AC-01`  
-`fotos` = array URLs S3 · localização da OS = primeiro equipamento
+Regras:
 
-## Localização
-`SHOPPING_COLINAS (NT/NS/PT)` · `GREEN_TOWER (SUB/N-1/TER/1F–26F)` · `ESTACIONAMENTO (EXT)`
+- `tecnico_id` obrigatório ao iniciar
+- `finalizada_at` automático ao finalizar
+- Ao finalizar: `os_finalizadas += 1` só em quem finalizou (não apoios)
+- Toda troca valida transição e gera `OsHistoria`
+- Histórico: `{ status, data }[]` — nunca `preStatus`
 
-## Materiais
-Departamentos: `SHOPPING_COLINAS | GREEN_TOWER | ESTACIONAMENTO`  
-Gasto só em: `EM_EXECUCAO | AGUARDANDO_MATERIAL | MATERIAL_COMPRADO`  
-Ao remover: estornar estoque + criar movimentação `ENTRADA` + histórico
+# Equipamentos
 
-## Solicitação de Compra
-`PENDENTE → APROVADA | RECUSADA` · payload: `{ status: 'APROVADA' | 'RECUSADA' }`
+`tag_formatada = ${tag_categoria}-${num_tag.padStart(2,'0')}` · fotos = URLs Supabase Storage
 
-## Preventivas 🚧
-Criadas direto no equipamento (nunca via OS) · vínculo: Equipamento ↔ Preventiva ↔ Checklist  
-Status: `AGENDADA | EM_EXECUCAO | FINALIZADA | ATRASADA`  
-Prioridade: CRUD → Checklist → Vencidas
+# Localização
 
-## Convenções NestJS
-Estrutura: `src/modulo/{controller,service,module,dto/}`  
+`SHOPPING_COLINAS` (NT/NS/PT) · `GREEN_TOWER` (SUB/N-1/TER/1F–26F) · `ESTACIONAMENTO` (EXT)
+
+# Materiais
+
+- Paginação obrigatória: `?page=1&limit=10`
+- `notificacao_ativa: Boolean @default(true)` — se `false`, exclui da query estoque baixo
+- Gasto só em: `EM_EXECUCAO | AGUARDANDO_MATERIAL | MATERIAL_COMPRADO`
+- Ao remover gasto: estornar estoque + `MovimentacaoEstoque` ENTRADA + histórico
+- Entrada/saída: guard `is_almoxarifado` · registrar `MovimentacaoEstoque`
+- Badge: `quantidade <= quantidade_minima AND notificacao_ativa = true`
+
+Solicitação de compra: `PENDENTE → APROVADA | RECUSADA`
+
+# Preventivas 🚧
+
+Criadas no equipamento (nunca via OS) · `Equipamento ↔ Preventiva ↔ Checklist`
+
+Status: `AGENDADA | EM_EXECUCAO | FINALIZADA | ATRASADA`
+
+# Convenções NestJS
+
+- Estrutura: `src/modulo/{controller,service,module,dto/}`
 - `findOne` antes de update/delete · `PartialType` no UpdateDto
-- Rotas específicas antes de `/:id` · sempre `include` nas relações
+- Rotas específicas antes de `/:id` · sempre retornar com includes
+- DTOs mapeados explicitamente — nunca direto ao Prisma `data`
 - Nunca `db push` em produção — sempre migration
-- Exceções: `NotFoundException | ConflictException | BadRequestException | ForbiddenException`
+- Exceptions: `NotFoundException | ConflictException | BadRequestException | ForbiddenException`
+- Auth: `@UseGuards(JwtAuthGuard)` · público: `@Public()` · roles: `@Roles()`
 
-## Auth
-`@UseGuards(JwtAuthGuard)` · público: `@Public()` · roles: `@Roles('ADMIN','LIDER')`
+# Regras Finais
 
-## Status & Prioridades
-| Módulo | % | Próximo |
-|---|---|---|
-| OS | ~95% | Filtros, detalhe, fluxo completo, solicitação compra |
-| Materiais | ~95% | — |
-| Configuração | ~90% | — |
-| Preventivas | ~60% | Checklist, upload S3 |
-| Relatórios | ~10% | Implementar |
-
-## Regras Finais
+- TS estrito — nunca `any`
 - Não quebrar endpoints existentes
 - Nunca retornar senha/token
 - Verificar services e DTOs antes de criar novos
-- Respostas objetivas, sem boilerplate
