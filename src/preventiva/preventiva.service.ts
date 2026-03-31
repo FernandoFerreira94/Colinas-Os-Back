@@ -119,13 +119,17 @@ export class PreventivaService {
   // ─── CRUD ──────────────────────────────────────────────────────────────────
 
   async create(dto: CreatePreventivaDto) {
-
-    const existente = await this.prisma.preventiva.findMany({
-      where: { equipamento_id: dto.equipamento_id }
+    const existente = await this.prisma.preventiva.findFirst({
+      where: {
+        equipamento_id: dto.equipamento_id,
+        status: { not: StatusPreventiva.FINALIZADA },
+      },
     });
 
     if (existente) {
-      throw new BadRequestException('Preventiva duplicada para o equipamento.');
+      throw new BadRequestException(
+        'Já existe uma preventiva ativa agendada para este equipamento.',
+      );
     }
     
     const equipamento = await this.prisma.equipamentos.findUnique({
@@ -146,7 +150,9 @@ export class PreventivaService {
     const dataAgendada = await this.calcularDataAgendada(categoria, dataInicio);
 
     const checklistId =
-      dto.checklist_id ?? (await this.obterOuCriarChecklistPadrao(categoria));
+      dto.checklist_id ??
+      equipamento.checklist_id ??
+      (await this.obterOuCriarChecklistPadrao(categoria));
 
     return this.prisma.preventiva.create({
       data: {
@@ -220,6 +226,13 @@ export class PreventivaService {
   async remove(id: string) {
     await this.findOne(id);
     return this.prisma.preventiva.delete({ where: { id } });
+  }
+
+  async findAllChecklists() {
+    return this.prisma.checklistTemplate.findMany({
+      include: { itens: { orderBy: { ordem: 'asc' } } },
+      orderBy: { nome: 'asc' },
+    });
   }
 
   // ─── Stats por mês ─────────────────────────────────────────────────────────

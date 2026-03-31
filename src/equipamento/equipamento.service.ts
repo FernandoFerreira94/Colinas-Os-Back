@@ -14,11 +14,11 @@ import { UpdateEquipamentoDto } from './dto/update_equipamento.dto';
 export class EquipamentoService {
   constructor(private prisma: PrismaService) {}
 
-  // ✅ include centralizado — fácil de manter
   private readonly includeRelations = {
     categoria: true,
     localizacao: true, // novo
     empresa: true, // novo
+    checklist: true, // novo relacionamento
     ordens_servico: true,
     preventivas: true,
   };

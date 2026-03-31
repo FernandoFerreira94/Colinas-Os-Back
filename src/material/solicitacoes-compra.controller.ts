@@ -10,10 +10,19 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
-import { CreateItemSolicitacaoDto, CreateSolicitacaoCompraDto } from './dto/create-solicitacao-compra.dto';
+import {
+  CreateItemSolicitacaoDto,
+  CreateSolicitacaoCompraDto,
+} from './dto/create-solicitacao-compra.dto';
 import { MaterialService } from './material.service';
 
 class UpdateSolicitacaoStatusDto {
@@ -23,6 +32,18 @@ class UpdateSolicitacaoStatusDto {
   @IsOptional()
   @IsString()
   observacao?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  ignorar_check?: boolean;
+
+  @IsOptional()
+  @IsString()
+  material_id?: string;
+
+  @IsOptional()
+  @IsNumber()
+  valor_unitario?: number;
 }
 
 @UseGuards(JwtAuthGuard)
@@ -48,6 +69,11 @@ export class SolicitacoesCompraController {
     return this.materialService.findSolicitacoesCompraByOs(osId);
   }
 
+  @Get('preventiva/:preventivaId')
+  findByPreventiva(@Param('preventivaId') preventivaId: string) {
+    return this.materialService.findSolicitacoesCompraByPreventiva(preventivaId);
+  }
+
   @Delete('items/:itemId')
   @HttpCode(HttpStatus.OK)
   removeItem(@Param('itemId') itemId: string) {
@@ -65,14 +91,14 @@ export class SolicitacoesCompraController {
       dto.acao,
       user.sub,
       dto.observacao,
+      dto.ignorar_check,
+      dto.material_id,
+      dto.valor_unitario,
     );
   }
 
   @Post(':id/items')
-  addItem(
-    @Param('id') id: string,
-    @Body() dto: CreateItemSolicitacaoDto,
-  ) {
+  addItem(@Param('id') id: string, @Body() dto: CreateItemSolicitacaoDto) {
     return this.materialService.addItemToSolicitacao(id, dto);
   }
 }

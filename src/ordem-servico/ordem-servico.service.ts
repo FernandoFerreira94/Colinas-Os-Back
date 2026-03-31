@@ -129,54 +129,50 @@ export class OrdemServicoService {
   async create(dto: CreateOrdemServicoDto) {
     const { equipamentos_ids, ...osData } = dto;
     const os = await this.prisma.$transaction(async (tx) => {
-      const codigo = await gerarCodigoOS(
-        tx,
-        osData.tipo,
-        osData.categoria,
-      );
-     
+      const codigo = await gerarCodigoOS(tx, osData.tipo, osData.categoria);
 
-    const createdOs = await tx.ordemServico.create({
-      data: {
-        ...osData,
-        codigo,
-        fotos: osData.fotos ?? [],
-        status: 'ABERTA',
-        tecnico_id: osData.tecnico_id ?? null,
-        equipamento_id:
-          equipamentos_ids?.[0] ?? osData.equipamento_id ?? null,
-      },
-    });
-
-    if (equipamentos_ids?.length) {
-      await tx.osEquipamento.createMany({
-        data: equipamentos_ids.map((equipamento_id) => ({
-          os_id: createdOs.id,
-          equipamento_id,
-        })),
-        skipDuplicates: true,
+      const createdOs = await tx.ordemServico.create({
+        data: {
+          ...osData,
+          codigo,
+          fotos: osData.fotos ?? [],
+          status: 'ABERTA',
+          tecnico_id: osData.tecnico_id ?? null,
+          equipamento_id:
+            equipamentos_ids?.[0] ?? osData.equipamento_id ?? null,
+        },
       });
-    }
 
-    await tx.osHistorico.create({
-      data: {
-        os_id: createdOs.id,
-        status_gerado: StatusOS.ABERTA,
-        descricao:
-          'Ordem de Serviço criada e aguardando início da execução.',
-        criado_por_id: osData.criado_por_id,
-      },
+      if (equipamentos_ids?.length) {
+        await tx.osEquipamento.createMany({
+          data: equipamentos_ids.map((equipamento_id) => ({
+            os_id: createdOs.id,
+            equipamento_id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      await tx.osHistorico.create({
+        data: {
+          os_id: createdOs.id,
+          status_gerado: StatusOS.ABERTA,
+          descricao:
+            osData.descricao ??
+            'Ordem de Serviço criada e aguardando início da execução.',
+          criado_por_id: osData.criado_por_id,
+        },
+      });
+
+      return createdOs.id; // 👈 retorna só o ID
     });
 
-    return createdOs.id; // 👈 retorna só o ID
-  });
-
-  // ✅ FORA da transaction (zero risco de timeout)
-  return this.prisma.ordemServico.findUnique({
-    where: { id: os },
-    include: this.includeRelations,
-  });
-}
+    // ✅ FORA da transaction (zero risco de timeout)
+    return this.prisma.ordemServico.findUnique({
+      where: { id: os },
+      include: this.includeRelations,
+    });
+  }
 
   async update(id: string, dto: UpdateOrdemServicoDto) {
     await this.findOne(id);
@@ -197,7 +193,11 @@ export class OrdemServicoService {
     const os = await this.findOne(id);
 
     // só exige tecnico_id se a OS ainda não tem um (novo início)
-    if (dto.status === StatusOS.EM_EXECUCAO && !dto.tecnico_id && !os.tecnico_id) {
+    if (
+      dto.status === StatusOS.EM_EXECUCAO &&
+      !dto.tecnico_id &&
+      !os.tecnico_id
+    ) {
       throw new BadRequestException(
         'tecnico_id é obrigatório para iniciar a execução.',
       );
@@ -222,6 +222,38 @@ export class OrdemServicoService {
       data.atribuido_por_id = dto.atribuido_por_id;
     }
 
+    let descricaoFinal = dto.relatorio ?? `Status alterado para ${dto.status}`;
+
+    // Busca materiais solicitados para detalhar no histórico
+    if (
+      dto.status === StatusOS.MATERIAL_COMPRADO ||
+      dto.status === StatusOS.MATERIAL_RECUSADO
+    ) {
+      const solicitacoes = await this.prisma.solicitacaoCompra.findMany({
+        where: { os_id: id, status: 'PENDENTE' },
+        include: { itens: true },
+      });
+
+      if (solicitacoes.length > 0) {
+        const itensLista = solicitacoes.flatMap((s) => s.itens);
+        const nomesMateriais = itensLista
+          .map(
+            (i) =>
+              `${i.quantidade}x ${i.descricao}${i.cor ? ` (${i.cor})` : ''}`,
+          )
+          .join(', ');
+
+        const prefixo =
+          dto.status === StatusOS.MATERIAL_COMPRADO
+            ? 'Materiais comprados'
+            : 'Materiais recusados';
+
+        descricaoFinal = `${prefixo}: ${nomesMateriais}. ${
+          dto.relatorio ?? ''
+        }`.trim();
+      }
+    }
+
     // Mantém apenas escritas leves dentro da transação para evitar timeout (P2028)
     await this.prisma.$transaction([
       this.prisma.ordemServico.update({ where: { id }, data }),
@@ -229,7 +261,7 @@ export class OrdemServicoService {
         data: {
           os_id: id,
           status_gerado: dto.status,
-          descricao: dto.relatorio ?? `Status alterado para ${dto.status}`,
+          descricao: descricaoFinal,
           criado_por_id: userId,
           recusado: dto.status === StatusOS.MATERIAL_RECUSADO,
         },
@@ -253,6 +285,50 @@ export class OrdemServicoService {
     ]);
 
     return this.findOne(id);
+  }
+
+  // ─── Lógica de Produtividade ──────────────────────────────────────────────
+
+  private async contabilizarProdutividade(
+    osId: string,
+    finalizadorId: string,
+    tx: any,
+  ) {
+    const os = await tx.ordemServico.findUnique({
+      where: { id: osId },
+      select: { produtividade_contabilizada: true, tecnico_id: true },
+    });
+
+    if (!os || os.produtividade_contabilizada) return;
+
+    // 1. Incrementa OS Finalizada para quem está concluindo (finalizador ou tecnico atual)
+    const idParaFinalizar = finalizadorId || os.tecnico_id;
+
+    if (idParaFinalizar) {
+      await tx.user.update({
+        where: { id: idParaFinalizar },
+        data: { os_finalizadas: { increment: 1 } },
+      });
+    }
+
+    // 2. Busca e incrementa OS Apoio para todos os envolvidos
+    const apoios = await tx.osApoio.findMany({
+      where: { os_id: osId },
+      select: { user_id: true },
+    });
+
+    for (const apoio of apoios) {
+      await tx.user.update({
+        where: { id: apoio.user_id },
+        data: { os_apoio: { increment: 1 } },
+      });
+    }
+
+    // 3. Marca como contabilizada
+    await tx.ordemServico.update({
+      where: { id: osId },
+      data: { produtividade_contabilizada: true },
+    });
   }
 
   // ─── Adicionar apoio (helper interno) ─────────────────────────────────────
@@ -397,26 +473,37 @@ export class OrdemServicoService {
       );
     }
 
-    if (apoioIds && apoioIds.length > 0) {
-      await this.adicionarApoios(id, apoioIds);
-    }
+    return this.prisma.$transaction(async (tx) => {
+      if (apoioIds && apoioIds.length > 0) {
+        for (const apoioId of apoioIds) {
+          await tx.osApoio.upsert({
+            where: { os_id_user_id: { os_id: id, user_id: apoioId } },
+            create: { os_id: id, user_id: apoioId },
+            update: {},
+          });
+        }
+      }
 
-    const updated = await this.prisma.ordemServico.update({
-      where: { id },
-      data: { status: StatusOS.AGUARDANDO_FISCALIZACAO },
-      include: this.includeRelations,
+      // Contabiliza produtividade
+      await this.contabilizarProdutividade(id, userId, tx);
+
+      const updated = await tx.ordemServico.update({
+        where: { id },
+        data: { status: StatusOS.AGUARDANDO_FISCALIZACAO },
+        include: this.includeRelations,
+      });
+
+      await tx.osHistorico.create({
+        data: {
+          os_id: id,
+          status_gerado: StatusOS.AGUARDANDO_FISCALIZACAO,
+          descricao: relatorio,
+          criado_por_id: userId,
+        },
+      });
+
+      return updated;
     });
-
-    await this.prisma.osHistorico.create({
-      data: {
-        os_id: id,
-        status_gerado: StatusOS.AGUARDANDO_FISCALIZACAO,
-        descricao: relatorio,
-        criado_por_id: userId,
-      },
-    });
-
-    return updated;
   }
 
   async pausar(
@@ -467,10 +554,7 @@ export class OrdemServicoService {
   ) {
     const os = await this.findOne(id);
 
-    const statusPermitidos: StatusOS[] = [
-      StatusOS.PAUSADA,
-      StatusOS.RECUSADO,
-    ];
+    const statusPermitidos: StatusOS[] = [StatusOS.PAUSADA, StatusOS.RECUSADO];
 
     if (!statusPermitidos.includes(os.status)) {
       throw new BadRequestException(
@@ -530,30 +614,44 @@ export class OrdemServicoService {
       );
     }
 
-    if (apoioIds && apoioIds.length > 0) {
-      await this.adicionarApoios(id, apoioIds);
-    }
+    return this.prisma.$transaction(async (tx) => {
+      if (apoioIds && apoioIds.length > 0) {
+        for (const apoioId of apoioIds) {
+          await tx.osApoio.upsert({
+            where: { os_id_user_id: { os_id: id, user_id: apoioId } },
+            create: { os_id: id, user_id: apoioId },
+            update: {},
+          });
+        }
+      }
 
-    const updated = await this.prisma.ordemServico.update({
-      where: { id },
-      data: {
-        status: StatusOS.FINALIZADA,
-        finalizada_at: new Date(),
-        ...(fotos && fotos.length > 0 ? { fotos: { push: fotos } } : {}),
-      },
-      include: this.includeRelations,
+      // Se NÃO vem de fiscalização, contabiliza agora (pois é finalização direta)
+      // Se vem de fiscalização, o técnico já foi contabilizado no 'enviarParaFiscalizacao'
+      if (os.status !== StatusOS.AGUARDANDO_FISCALIZACAO) {
+        await this.contabilizarProdutividade(id, userId, tx);
+      }
+
+      const updated = await tx.ordemServico.update({
+        where: { id },
+        data: {
+          status: StatusOS.FINALIZADA,
+          finalizada_at: new Date(),
+          ...(fotos && fotos.length > 0 ? { fotos: { push: fotos } } : {}),
+        },
+        include: this.includeRelations,
+      });
+
+      await tx.osHistorico.create({
+        data: {
+          os_id: id,
+          status_gerado: StatusOS.FINALIZADA,
+          descricao: relatorio,
+          criado_por_id: userId,
+        },
+      });
+
+      return updated;
     });
-
-    await this.prisma.osHistorico.create({
-      data: {
-        os_id: id,
-        status_gerado: StatusOS.FINALIZADA,
-        descricao: relatorio,
-        criado_por_id: userId,
-      },
-    });
-
-    return updated;
   }
 
   async recusarFiscalizacao(id: string, userId: string, motivo: string) {

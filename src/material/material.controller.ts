@@ -22,21 +22,16 @@ import { FiltrarMaterialDto } from './dto/filtrar-material.dto';
 export class MaterialController {
   constructor(private readonly materialService: MaterialService) {}
 
+  @UseGuards(JwtAuthGuard)
   @Post()
   create(@Body() dto: CreateMaterialDto) {
     return this.materialService.createMaterial(dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get()
   findAll(@Query() filtros: FiltrarMaterialDto) {
     return this.materialService.findAll(filtros);
-  }
-
-  // Rota específica ANTES de /:id
-  @UseGuards(JwtAuthGuard)
-  @Get('para-baixa')
-  findMateriaisParaBaixa() {
-    return this.materialService.findMateriaisParaBaixa();
   }
 
   @UseGuards(JwtAuthGuard)
@@ -45,16 +40,19 @@ export class MaterialController {
     return this.materialService.findMateriaisEstoqueBaixo();
   }
 
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   findById(@Param('id') id: string) {
     return this.materialService.findById(id);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateMaterialDto) {
     return this.materialService.update(id, dto);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {

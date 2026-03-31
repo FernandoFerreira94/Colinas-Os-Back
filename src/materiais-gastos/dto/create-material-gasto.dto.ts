@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsInt,
+  IsOptional,
   IsPositive,
   IsString,
   IsUUID,
@@ -21,8 +22,13 @@ export class CreateItemMaterialGastoDto {
 }
 
 export class CreateMaterialGastoDto {
+  @IsOptional()
   @IsUUID()
-  os_id: string;
+  os_id?: string;
+
+  @IsOptional()
+  @IsUUID()
+  preventiva_id?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

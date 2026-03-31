@@ -39,6 +39,11 @@ export class PreventivaController {
     return this.service.findAll({ status, mes, categoria });
   }
 
+  @Get('checklists')
+  findAllChecklists() {
+    return this.service.findAllChecklists();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOne(id);

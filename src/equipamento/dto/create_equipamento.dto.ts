@@ -53,4 +53,8 @@ export class Create_EquipamentoDto {
   @IsString({ each: true })
   @IsOptional()
   fotos?: string[];
+
+  @IsString()
+  @IsOptional()
+  checklist_id?: string;
 }

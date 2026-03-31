@@ -35,6 +35,7 @@ export class AuthService {
       matricula: user.matricula,
       is_admin: user.is_admin,
       funcao: user.funcao,
+      is_almoxarife: user.is_almoxarife,
     };
 
     return {
@@ -45,6 +46,7 @@ export class AuthService {
         matricula: user.matricula,
         funcao: user.funcao,
         is_admin: user.is_admin,
+        is_almoxarife: user.is_almoxarife,
       },
     };
   }

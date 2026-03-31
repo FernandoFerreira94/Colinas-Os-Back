@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { MateriaisGastosService } from './materiais-gastos.service';
@@ -22,9 +22,25 @@ export class MateriaisGastosController {
     return this.service.findByOs(osId);
   }
 
+  @Get('preventiva/:preventivaId')
+  findByPreventiva(@Param('preventivaId') preventivaId: string) {
+    return this.service.findByPreventiva(preventivaId);
+  }
+
+  @Get('para-baixa')
+  findParaBaixa() {
+    return this.service.findParaBaixa();
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   remove(@Param('id') id: string) {
     return this.service.remove(id);
+  }
+
+  @Patch(':id/baixa')
+  @HttpCode(HttpStatus.OK)
+  darBaixa(@Param('id') id: string) {
+    return this.service.darBaixa(id);
   }
 }

@@ -8,6 +8,7 @@ import {
   MinLength,
   MaxLength,
   Min,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { Complexo, Unidade } from '@prisma/client';
@@ -53,4 +54,8 @@ export class CreateMaterialDto {
 
   @IsEnum(Unidade, { message: 'Selecione a unidade' })
   unidade: Unidade;
+
+  @IsBoolean()
+  @IsOptional()
+  notificacao_ativa?: boolean;
 }

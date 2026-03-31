@@ -33,6 +33,9 @@ export class CreateItemSolicitacaoDto {
   @IsOptional()
   @IsString()
   unidade?: string;
+  @IsOptional()
+  @IsString()
+  cor?: string;
 
   @IsOptional()
   @IsString()
