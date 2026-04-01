@@ -58,4 +58,8 @@ export class CreateMaterialDto {
   @IsBoolean()
   @IsOptional()
   notificacao_ativa?: boolean;
+
+  @IsString()
+  @IsOptional()
+  foto_url?: string;
 }

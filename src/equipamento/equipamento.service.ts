@@ -166,6 +166,29 @@ export class EquipamentoService {
     }
   }
 
+  async updateFoto(id: string, foto_url: string) {
+    try {
+      const equipamento = await this.prisma.equipamentos.findUnique({
+        where: { id },
+      });
+
+      if (!equipamento) {
+        throw new NotFoundException('Equipamento não encontrado.');
+      }
+
+      return await this.prisma.equipamentos.update({
+        where: { id },
+        data: { foto_url },
+        include: this.includeRelations,
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new InternalServerErrorException(
+        'Erro ao atualizar foto do equipamento',
+      );
+    }
+  }
+
   async deleteEquipamento(delete_id: string) {
     try {
       const equipamento = await this.prisma.equipamentos.findUnique({

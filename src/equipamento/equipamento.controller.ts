@@ -7,10 +7,19 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
+import { IsString, IsUrl } from 'class-validator';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { EquipamentoService } from './equipamento.service';
 import { Create_EquipamentoDto } from './dto/create_equipamento.dto';
 import { UpdateEquipamentoDto } from './dto/update_equipamento.dto';
+
+class UpdateEquipamentoFotoDto {
+  @IsString()
+  @IsUrl()
+  foto_url: string;
+}
 
 @Controller('equipamento')
 export class EquipamentoController {
@@ -41,13 +50,21 @@ export class EquipamentoController {
     return this.equipamentoService.createEquipamento(createEqupamento);
   }
 
-  // equipamento.controller.ts — adicione esse endpoint
   @Patch(':id')
   updateEquipamento(
     @Param('id') id: string,
     @Body() updateDto: UpdateEquipamentoDto,
   ) {
     return this.equipamentoService.updateEquipamento(id, updateDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/foto')
+  updateFoto(
+    @Param('id') id: string,
+    @Body() body: UpdateEquipamentoFotoDto,
+  ) {
+    return this.equipamentoService.updateFoto(id, body.foto_url);
   }
 
   @Delete('delete/:id')

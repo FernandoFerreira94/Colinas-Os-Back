@@ -12,7 +12,14 @@ import {
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
+import { IsString, IsUrl } from 'class-validator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+
+class UpdateMaterialFotoDto {
+  @IsString()
+  @IsUrl()
+  foto_url: string;
+}
 import { MaterialService } from './material.service';
 import { CreateMaterialDto } from './dto/createMaterial.dto';
 import { UpdateMaterialDto } from './dto/updateMaterial.dto';
@@ -38,6 +45,12 @@ export class MaterialController {
   @Get('estoque-baixo')
   findMateriaisEstoqueBaixo() {
     return this.materialService.findMateriaisEstoqueBaixo();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/foto')
+  updateFoto(@Param('id') id: string, @Body() body: UpdateMaterialFotoDto) {
+    return this.materialService.updateFoto(id, body.foto_url);
   }
 
   @UseGuards(JwtAuthGuard)

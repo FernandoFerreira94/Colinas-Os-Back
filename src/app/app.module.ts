@@ -13,6 +13,7 @@ import { EmpresasTerceirizadasModule } from 'src/empresas-terceirizadas/empresas
 import { OrdemServicoModule } from 'src/ordem-servico/ordem-servico.module';
 import { MateriaisGastosModule } from 'src/materiais-gastos/materiais-gastos.module';
 import { PreventivaModule } from 'src/preventiva/preventiva.module';
+import { UploadModule } from 'src/upload/upload.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { PreventivaModule } from 'src/preventiva/preventiva.module';
     OrdemServicoModule,
     MateriaisGastosModule,
     PreventivaModule,
+    UploadModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -8,19 +8,33 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { StatusOS, TipoOS } from '@prisma/client';
+import { ContextoFoto, StatusOS, TipoOS } from '@prisma/client';
+import { IsEnum, IsString, IsUrl } from 'class-validator';
 import { CurrentUser } from 'src/auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PermissaoGuard } from 'src/auth/guards/permissao.guard';
+import { UploadService } from 'src/upload/upload.service';
 import { CreateOrdemServicoDto } from './dto/create-ordem-servico.dto';
 import { RelatorioEtapaDto } from './dto/relatorio-etapa.dto';
 import { UpdateOrdemServicoDto } from './dto/update-ordem-servico.dto';
 import { UpdateStatusOsDto } from './dto/update-status-os.dto';
 import { OrdemServicoService } from './ordem-servico.service';
 
+class CreateOsFotoDto {
+  @IsString()
+  @IsUrl()
+  url: string;
+
+  @IsEnum(ContextoFoto)
+  contexto: ContextoFoto;
+}
+
 @Controller('ordem-servico')
 export class OrdemServicoController {
-  constructor(private readonly ordemServicoService: OrdemServicoService) {}
+  constructor(
+    private readonly ordemServicoService: OrdemServicoService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   @Get()
   findAll() {
@@ -40,6 +54,18 @@ export class OrdemServicoController {
   @Get('categoria/:categoria')
   findByCategoria(@Param('categoria') categoria: string) {
     return this.ordemServicoService.findByCategoria(categoria);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('fotos/:fotoId')
+  removeFoto(@Param('fotoId') fotoId: string) {
+    return this.ordemServicoService.removeFoto(fotoId, this.uploadService);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/fotos')
+  addFoto(@Param('id') id: string, @Body() dto: CreateOsFotoDto) {
+    return this.ordemServicoService.addFoto(id, dto);
   }
 
   @Get(':id')
@@ -180,6 +206,7 @@ export class OrdemServicoController {
     return this.ordemServicoService.removeApoio(id, userId);
   }
 
+  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.ordemServicoService.remove(id);

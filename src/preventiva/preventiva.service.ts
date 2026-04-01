@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { CategoriaEquipamento, StatusPreventiva } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UploadService } from 'src/upload/upload.service';
 import { CreatePreventivaDto } from './dto/create-preventiva.dto';
 import { UpdatePreventivaDto } from './dto/update-preventiva.dto';
 
@@ -26,6 +27,7 @@ export class PreventivaService {
         itens: { orderBy: { ordem: 'asc' as const } },
       },
     },
+    fotos: true,
   };
 
   // ─── Helpers de agendamento ────────────────────────────────────────────────
@@ -203,6 +205,40 @@ export class PreventivaService {
 
     if (!preventiva) throw new NotFoundException('Preventiva não encontrada.');
     return preventiva;
+  }
+
+  async addFoto(preventivaId: string, url: string) {
+    const preventiva = await this.prisma.preventiva.findUnique({
+      where: { id: preventivaId },
+    });
+
+    if (!preventiva) {
+      throw new NotFoundException('Preventiva não encontrada.');
+    }
+
+    return this.prisma.preventivaFoto.create({
+      data: {
+        preventiva_id: preventivaId,
+        url,
+      },
+    });
+  }
+
+  async removeFoto(fotoId: string, uploadService: UploadService) {
+    const foto = await this.prisma.preventivaFoto.findUnique({
+      where: { id: fotoId },
+    });
+
+    if (!foto) {
+      throw new NotFoundException('Foto da preventiva não encontrada.');
+    }
+
+    const path = uploadService.extractPathFromUrl(foto.url, 'preventivas');
+    await uploadService.deleteFile('preventivas', path);
+
+    return this.prisma.preventivaFoto.delete({
+      where: { id: fotoId },
+    });
   }
 
   async update(id: string, dto: UpdatePreventivaDto) {

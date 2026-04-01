@@ -4,6 +4,7 @@ import {
   NotFoundException,
   ConflictException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { StatusOS } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -30,6 +31,7 @@ export class MaterialService {
         quantidade_minima: dto.quantidade_minima,
         quantidade_estoque: dto.quantidade_estoque,
         departamento: dto.departamento,
+        foto_url: dto.foto_url,
         marca: dto.marca,
         price: dto.price,
         unidade: dto.unidade,
@@ -77,6 +79,7 @@ export class MaterialService {
           quantidade_minima: true,
           notificacao_ativa: true,
           departamento: true,
+          foto_url: true,
           subcategoria: {
             select: {
               id: true,
@@ -134,6 +137,28 @@ export class MaterialService {
         subcategoria: true,
       },
     });
+  }
+
+  async updateFoto(id: string, foto_url: string) {
+    try {
+      await this.findById(id);
+
+      return await this.prisma.material.update({
+        where: { id },
+        data: { foto_url },
+        include: {
+          subcategoria: true,
+        },
+      });
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        'Erro ao atualizar foto do material',
+      );
+    }
   }
 
   async remove(id: string) {
@@ -404,7 +429,6 @@ export class MaterialService {
       },
     });
   }
-
 
   async findSolicitacoesCompraByOs(osId: string) {
     return this.prisma.solicitacaoCompra.findMany({

@@ -78,6 +78,7 @@ model Equipamentos {
   local_instalacao String?
   descricao        String?
   fotos            String[]
+  foto_url         String?
   checklist_id     String?
   created_at       DateTime              @default(now())
   categoria        Categoria_Equipamento @relation(fields: [categoria_id], references: [id])
@@ -108,7 +109,6 @@ model OrdemServico {
   empresa_nome      String?
   tecnico_externo   String?
   cargo_externo     String?
-  fotos             String[]
   observacao_fiscal String?
   created_at        DateTime              @default(now())
   updated_at                  DateTime              @updatedAt
@@ -127,6 +127,7 @@ model OrdemServico {
   equipamentos_os   OsEquipamento[]
   historico         OsHistorico[]
   solicitacoes      SolicitacaoCompra[]
+  fotos_os          OsFoto[]
 }
 
 model OsHistorico {
@@ -178,6 +179,17 @@ model SubCategoria_Material {
   @@unique([subCategoria, categoria_id])
 }
 
+model OsFoto {
+  id         String       @id @default(uuid())
+  os_id      String
+  url        String
+  contexto   ContextoFoto
+  created_at DateTime     @default(now())
+  os         OrdemServico @relation(fields: [os_id], references: [id], onDelete: Cascade)
+
+  @@map("os_fotos")
+}
+
 model Material {
   id                 String                  @id @default(uuid())
   codigo             String                  @unique @db.VarChar(20)
@@ -193,6 +205,7 @@ model Material {
   createdAt          DateTime                @default(now())
   updatedAt          DateTime                @updatedAt
   notificacao_ativa  Boolean                 @default(true)
+  foto_url           String?
   gastos             MaterialGasto[]
   movimentacoes      MovimentacaoEstoque[]
   itens_solicitacao  SolicitacaoCompraItem[]
@@ -299,6 +312,25 @@ model Preventiva {
   equipamento         Equipamentos      @relation(fields: [equipamento_id], references: [id])
   materiais_gastos    MaterialGasto[]
   solicitacoes        SolicitacaoCompra[]
+  fotos               PreventivaFoto[]
+}
+
+model PreventivaFoto {
+  id            String     @id @default(uuid())
+  preventiva_id String
+  url           String
+  created_at    DateTime   @default(now())
+  preventiva    Preventiva @relation(fields: [preventiva_id], references: [id], onDelete: Cascade)
+
+  @@map("preventiva_fotos")
+}
+
+enum ContextoFoto {
+  ABERTURA
+  EXECUCAO
+  FISCALIZACAO
+  FINALIZANDO
+  AGUARDANDO_MATERIAL
 }
 
 enum CategoriaEquipamento {

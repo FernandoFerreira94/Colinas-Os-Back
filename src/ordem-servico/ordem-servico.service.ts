@@ -4,8 +4,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FuncaoUser, StatusOS, TipoOS } from '@prisma/client';
+import { ContextoFoto, FuncaoUser, StatusOS, TipoOS } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { UploadService } from 'src/upload/upload.service';
 import { CreateOrdemServicoDto } from './dto/create-ordem-servico.dto';
 import { UpdateOrdemServicoDto } from './dto/update-ordem-servico.dto';
 import { UpdateStatusOsDto } from './dto/update-status-os.dto';
@@ -80,6 +81,9 @@ export class OrdemServicoService {
       },
       orderBy: { criado_em: 'asc' as const },
     },
+    fotos_os: {
+      orderBy: { created_at: 'asc' as const },
+    },
   };
 
   async findAll() {
@@ -100,6 +104,41 @@ export class OrdemServicoService {
     }
 
     return os;
+  }
+
+  async addFoto(osId: string, dto: { url: string; contexto: ContextoFoto }) {
+    const os = await this.prisma.ordemServico.findUnique({
+      where: { id: osId },
+    });
+
+    if (!os) {
+      throw new NotFoundException('Ordem de Serviço não encontrada.');
+    }
+
+    return this.prisma.osFoto.create({
+      data: {
+        os_id: osId,
+        url: dto.url,
+        contexto: dto.contexto,
+      },
+    });
+  }
+
+  async removeFoto(fotoId: string, uploadService: UploadService) {
+    const foto = await this.prisma.osFoto.findUnique({
+      where: { id: fotoId },
+    });
+
+    if (!foto) {
+      throw new NotFoundException('Foto da OS não encontrada.');
+    }
+
+    const path = uploadService.extractPathFromUrl(foto.url, 'os-fotos');
+    await uploadService.deleteFile('os-fotos', path);
+
+    return this.prisma.osFoto.delete({
+      where: { id: fotoId },
+    });
   }
 
   async findByStatus(status: StatusOS) {
@@ -127,7 +166,7 @@ export class OrdemServicoService {
   }
 
   async create(dto: CreateOrdemServicoDto) {
-    const { equipamentos_ids, ...osData } = dto;
+    const { equipamentos_ids, fotos: _fotos, ...osData } = dto;
     const os = await this.prisma.$transaction(async (tx) => {
       const codigo = await gerarCodigoOS(tx, osData.tipo, osData.categoria);
 
@@ -135,7 +174,6 @@ export class OrdemServicoService {
         data: {
           ...osData,
           codigo,
-          fotos: osData.fotos ?? [],
           status: 'ABERTA',
           tecnico_id: osData.tecnico_id ?? null,
           equipamento_id:
@@ -177,7 +215,7 @@ export class OrdemServicoService {
   async update(id: string, dto: UpdateOrdemServicoDto) {
     await this.findOne(id);
 
-    const { finalizada_at, ...data } = dto;
+    const { finalizada_at, fotos: _fotosIgnored, ...data } = dto;
 
     return this.prisma.ordemServico.update({
       where: { id },
@@ -529,7 +567,6 @@ export class OrdemServicoService {
       where: { id },
       data: {
         status: StatusOS.PAUSADA,
-        ...(fotos && fotos.length > 0 ? { fotos: { push: fotos } } : {}),
       },
       include: this.includeRelations,
     });
@@ -636,7 +673,6 @@ export class OrdemServicoService {
         data: {
           status: StatusOS.FINALIZADA,
           finalizada_at: new Date(),
-          ...(fotos && fotos.length > 0 ? { fotos: { push: fotos } } : {}),
         },
         include: this.includeRelations,
       });
