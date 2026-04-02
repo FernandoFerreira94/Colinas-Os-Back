@@ -12,7 +12,7 @@ import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { UploadService } from './upload.service';
 
-const VALID_BUCKETS = ['equipamentos', 'materiais', 'os-fotos', 'preventivas'];
+const VALID_BUCKETS = ['equipamentos', 'materiais', 'os-fotos', 'preventivas', 'materiais-solicitados'];
 
 @UseGuards(JwtAuthGuard)
 @Controller('upload')

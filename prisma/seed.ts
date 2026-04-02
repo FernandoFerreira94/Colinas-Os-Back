@@ -56,7 +56,7 @@ async function main() {
   console.log('✅ Subcategorias criadas');
 
   // ─── Materiais — Elétrica ──────────────────────────────────────────────────
-
+/*
   await prisma.material.upsert({
     where: { codigo: 'EL-001' },
     update: {},
@@ -408,7 +408,7 @@ async function main() {
   });
 
   console.log('✅ 4 Materiais de teste criados (Filtro de Ar, Óleo Lubrificante, Fusível, Fita Isolante)');
-
+ */
   // ─── ChecklistTemplates (idempotente: só cria se não existir) ──────────────
 
   async function upsertTemplate(nome: string, tipo: string, medicoes: object[], itens: { descricao: string; ordem: number; obrigatorio: boolean }[]) {
